@@ -8,8 +8,9 @@
   },
   "scripts": {
     "build": "npm run build:fe && npm run build:be",
-    "build:fe": "cd fe && npm ci && npm run build",
-    "build:be": "cd be && npm ci && npm run build",
+    "_comment": "빌드 도구(vite, tsc, @types/*)가 devDependencies에 있다. NODE_ENV=production이면 npm ci가 이를 건너뛰므로 --include=dev를 명시한다.",
+    "build:fe": "cd fe && npm ci --include=dev && npm run build",
+    "build:be": "cd be && npm ci --include=dev && npm run build",
     "start": "cd be && node dist/index.js"
   }
 }
