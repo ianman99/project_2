@@ -1,0 +1,15 @@
+{
+  "name": "salang-insaeng",
+  "version": "1.0.0",
+  "private": true,
+  "description": "사랑찾아 인생찾아 — DX SCHOOL 6기 1반 AI 매칭",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "npm run build:fe && npm run build:be",
+    "build:fe": "cd fe && npm ci && npm run build",
+    "build:be": "cd be && npm ci && npm run build",
+    "start": "cd be && node dist/index.js"
+  }
+}
