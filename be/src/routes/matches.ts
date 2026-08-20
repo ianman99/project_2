@@ -1,0 +1,48 @@
+import { Router } from 'express';
+import { config } from '../config';
+import { currentStudentNo, requireAuth } from '../middleware/require-auth';
+import { latestMatch, matchHistory, runMatching } from '../services/matching.service';
+import type { MatchDoc } from '../types/models';
+
+export const matchesRouter = Router();
+
+matchesRouter.use(requireAuth);
+
+/**
+ * 1위만 내려보낸다. 2위 이하는 DB에만 남는다 (PRD Q3, S-8).
+ * 상대 정보는 이름·나이·MBTI와 근거에 언급된 내용으로 제한된다 (S-2).
+ */
+function toPublic(doc: MatchDoc) {
+  const top = doc.results[0];
+  return {
+    id: doc._id.toHexString(),
+    generatedAt: doc.generatedAt,
+    isRefresh: doc.isRefresh,
+    dateCourse: doc.dateCourse ?? null,
+    match: {
+      name: top.name,
+      score: top.score,
+      headline: top.headline,
+      reasons: top.reasons,
+      concerns: top.concerns,
+      conversationStarters: top.conversationStarters,
+    },
+  };
+}
+
+/** 저장된 최신 결과. AI를 재호출하지 않는다 (PRD F-4.2). */
+matchesRouter.get('/', async (req, res) => {
+  const doc = await latestMatch(currentStudentNo(req));
+  res.json({ cost: config.match.cost, result: doc ? toPublic(doc) : null });
+});
+
+matchesRouter.get('/history', async (req, res) => {
+  const docs = await matchHistory(currentStudentNo(req));
+  res.json({ items: docs.map(toPublic) });
+});
+
+/** 매칭 실행. 최초·새로고침 모두 과금된다 (PRD F-5.2). */
+matchesRouter.post('/', async (req, res) => {
+  const doc = await runMatching(currentStudentNo(req));
+  res.status(201).json({ result: toPublic(doc) });
+});

@@ -1,0 +1,142 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* DESIGN.md — Nintendo.com 2001 콘솔 크롬.
+   단일 라이트 테마로 고정한다(다크 모드 없음). */
+
+@theme {
+  --font-sans: Arial, "Helvetica Neue", "맑은 고딕", "Malgun Gothic", sans-serif;
+  --font-display: "Arial Black", Arial, "맑은 고딕", sans-serif;
+
+  --color-carbon: #21242e;
+  --color-canvas: #7a8aba;
+  --color-canvas-soft: #9fbee7;
+  --color-periwinkle: #8ba1d4;
+  --color-lavender: #acace7;
+  --color-chrome-indigo: #3d4f97;
+  --color-muted-indigo: #60619c;
+  --color-platinum: #dedede;
+  --color-amber: #ecab37;
+  --color-nav-gold: #e48600;
+  --color-signal: #f68d1f;
+  --color-brand-red: #e60012;
+  --color-systems-teal: #206479;
+
+  --spacing-section: 48px;
+}
+
+/* shadcn CSS 변수를 Tailwind 유틸리티로 연결한다 (border-border, bg-card 등). */
+@theme inline {
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0px;
+
+  --background: #7a8aba;
+  --foreground: #21242e;
+  --card: #ffffff;
+  --card-foreground: #21242e;
+  --popover: #ffffff;
+  --popover-foreground: #21242e;
+  --primary: #ecab37;
+  --primary-foreground: #21242e;
+  --secondary: #8ba1d4;
+  --secondary-foreground: #21242e;
+  --muted: #dedede;
+  --muted-foreground: #3d4f97;
+  --accent: #f68d1f;
+  --accent-foreground: #21242e;
+  --destructive: #e60012;
+  --border: #3d4f97;
+  --input: #3d4f97;
+  --ring: #f68d1f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans text-[12px] leading-[1.4];
+  }
+}
+
+@layer components {
+  /* 깊이는 블러 섀도가 아니라 하드 베벨이다 (DESIGN.md Elevation). */
+
+  /* 1 — 패널: 위 하이라이트, 아래 인디고 그림자선 */
+  .plate {
+    background: var(--color-canvas);
+    border-top: 1px solid #a8b6d8;
+    border-left: 1px solid #97a7cd;
+    border-right: 1px solid var(--color-chrome-indigo);
+    border-bottom: 2px solid var(--color-chrome-indigo);
+  }
+
+  /* 0 — 인셋: 캔버스에 눌린 면 */
+  .inset {
+    background: #ffffff;
+    border-top: 2px solid var(--color-chrome-indigo);
+    border-left: 1px solid var(--color-chrome-indigo);
+    border-right: 1px solid #a8b6d8;
+    border-bottom: 1px solid #a8b6d8;
+  }
+
+  /* 2 — 칩: 눌리는 물리 버튼 */
+  .chip {
+    border-top: 1px solid #f6d79a;
+    border-left: 1px solid #f0c86a;
+    border-right: 1px solid #8a5f14;
+    border-bottom: 2px solid #8a5f14;
+  }
+  .chip:active {
+    border-top-width: 2px;
+    border-bottom-width: 1px;
+    transform: translateY(1px);
+  }
+
+  /* 3 — 커맨드 슬랩: 하프톤 도트가 깔린 카본 */
+  .slab {
+    background-color: var(--color-carbon);
+    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+
+  /* 실크스크린 범례 목소리 */
+  .legend {
+    @apply text-[11px] font-bold uppercase tracking-[0.5px];
+  }
+
+  /* 박스아트 워드마크 — 아웃라인 + 하드 드롭섀도 */
+  .wordmark {
+    font-family: var(--font-display);
+    color: #ffffff;
+    text-shadow:
+      2px 0 0 var(--color-carbon), -2px 0 0 var(--color-carbon),
+      0 2px 0 var(--color-carbon), 0 -2px 0 var(--color-carbon),
+      4px 4px 0 rgba(33, 36, 46, 0.45);
+  }
+}

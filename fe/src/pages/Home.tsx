@@ -1,0 +1,181 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, ApiError, type DateCourse, type MatchResult } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { Chip, ErrorText, Panel } from '../components/ui-kit';
+
+export function Home() {
+  const { user, setUser } = useAuth();
+  const [result, setResult] = useState<MatchResult | null>(null);
+  const [cost, setCost] = useState(1000);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    api
+      .latestMatch()
+      .then((r) => {
+        setResult(r.result);
+        setCost(r.cost);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  const run = async () => {
+    setError('');
+    setRunning(true);
+    try {
+      const { result } = await api.runMatch();
+      setResult(result);
+      const { user } = await api.me(); // 차감된 잔액 반영
+      setUser(user);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '매칭에 실패했습니다.');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="plate mb-4 bg-lavender p-8 text-center">
+        <img src="/logo.png" alt="" className="mx-auto mb-3 h-20 w-20" />
+        <h1 className="wordmark text-[44px] leading-none">사랑찾아 인생찾아</h1>
+        <p className="mt-3 text-[15px] font-bold text-carbon">
+          DX SCHOOL 6기 1반, 나에게 가장 잘 맞는 사람은 누구일까
+        </p>
+      </div>
+
+      {!user ? (
+        <Panel title="시작하기">
+          <p className="mb-3 text-[12px] text-carbon">
+            6기 1반 24명 전용 서비스입니다. 학번 이메일로 가입한 뒤 이용할 수 있습니다.
+          </p>
+          <div className="flex gap-2">
+            <Link to="/login">
+              <Chip>로그인</Chip>
+            </Link>
+            <Link to="/signup">
+              <Chip variant="signal">회원가입</Chip>
+            </Link>
+          </div>
+        </Panel>
+      ) : loading ? (
+        <Panel>
+          <p className="legend text-chrome-indigo">불러오는 중…</p>
+        </Panel>
+      ) : (
+        <>
+          {result && <MatchCard result={result} />}
+          {result?.dateCourse && <DateCourseCard course={result.dateCourse} />}
+
+          <Panel title={result ? '다시 찾기' : '운명의 상대'}>
+            <ErrorText>{error}</ErrorText>
+            {!result && (
+              <p className="mb-3 text-[12px] text-carbon">
+                <strong>{user.name}</strong>님, AI가 프로필을 분석해 가장 잘 맞는 이성을 찾아드립니다.
+              </p>
+            )}
+            <div className="inset mb-3 p-3">
+              <p className="legend mb-1 text-chrome-indigo">비용</p>
+              <p className="text-[12px] text-carbon">
+                1회 {cost.toLocaleString()} P · 보유 {user.points.toLocaleString()} P
+              </p>
+            </div>
+            <Chip variant="signal" onClick={run} disabled={running || user.points < cost}>
+              {running ? 'AI 분석 중…' : result ? '운명의 상대 새로고침' : '운명의 상대 찾기'}
+            </Chip>
+            {running && (
+              <p className="mt-2 text-[11px] text-chrome-indigo">
+                24명 프로필을 읽고, 홍대 가게를 검색하고 있습니다. 1~2분 정도 걸리니 이 화면을 유지해 주세요.
+              </p>
+            )}
+            {!running && user.points < cost && (
+              <p className="mt-2 text-[11px] text-brand-red">
+                포인트가 부족합니다. 마이페이지에서 충전을 요청하세요.
+              </p>
+            )}
+          </Panel>
+        </>
+      )}
+    </>
+  );
+}
+
+function MatchCard({ result }: { result: MatchResult }) {
+  const { match } = result;
+  return (
+    <Panel title="당신의 운명의 상대">
+      <div className="mb-3 flex items-baseline gap-3">
+        <span className="font-display text-[32px] leading-none text-carbon">{match.name}</span>
+        <span className="font-display text-[32px] leading-none text-brand-red">{match.score}%</span>
+      </div>
+      <p className="inset mb-3 p-3 text-[13px] font-bold text-carbon">{match.headline}</p>
+
+      <Section title="이래서 잘 맞습니다" items={match.reasons} />
+      <Section title="이런 점은 고려하세요" items={match.concerns} />
+      <Section title="이런 얘기로 시작해보세요" items={match.conversationStarters} />
+
+      <p className="mt-3 text-[10px] text-muted-indigo">
+        {new Date(result.generatedAt).toLocaleString('ko-KR')} 분석
+      </p>
+    </Panel>
+  );
+}
+
+function DateCourseCard({ course }: { course: DateCourse }) {
+  return (
+    <Panel title="홍대 데이트 코스">
+      <p className="mb-3 font-display text-[18px] leading-tight text-carbon">{course.title}</p>
+
+      <ol className="mb-3">
+        {course.stops.map((stop, i) => (
+          <li key={i} className="inset mb-2 p-3">
+            <div className="mb-1 flex items-baseline gap-2">
+              <span className="chip bg-signal px-2 py-0.5 legend text-carbon">{stop.time}</span>
+              <span className="text-[13px] font-bold text-carbon">{stop.place}</span>
+            </div>
+            <p className="text-[11px] text-muted-indigo">{stop.address}</p>
+            <p className="mt-1 text-[12px] text-carbon">{stop.activity}</p>
+            <p className="mt-1 text-[11px] text-chrome-indigo">{stop.why}</p>
+          </li>
+        ))}
+      </ol>
+
+      {course.tips.length > 0 && (
+        <>
+          <p className="legend mb-1 text-chrome-indigo">알아두면 좋은 것</p>
+          <ul className="text-[12px] text-carbon">
+            {course.tips.map((tip, i) => (
+              <li key={i} className="inset mb-1 px-2 py-1.5">
+                {tip}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function Section({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-3">
+      <p className="legend mb-1 text-chrome-indigo">{title}</p>
+      <ul className="text-[12px] text-carbon">
+        {items.map((item, i) => (
+          <li key={i} className="inset mb-1 px-2 py-1.5">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
