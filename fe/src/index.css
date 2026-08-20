@@ -130,6 +130,37 @@
     @apply text-[11px] font-bold uppercase tracking-[0.5px];
   }
 
+  /* 로딩 스피너 — 앰버 링이 회전한다. 두께를 두껍게 잡아 콘솔 부품처럼 보이게 한다. */
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid var(--color-chrome-indigo);
+    border-top-color: var(--color-amber);
+    border-radius: 9999px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* 진행 바 — 각진 인셋 트랙에 시그널 오렌지 채움 */
+  .progress-track {
+    height: 14px;
+    background: #ffffff;
+    border-top: 2px solid var(--color-chrome-indigo);
+    border-left: 1px solid var(--color-chrome-indigo);
+    border-right: 1px solid #a8b6d8;
+    border-bottom: 1px solid #a8b6d8;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--color-signal);
+    border-right: 1px solid #8a5f14;
+    transition: width 0.6s linear;
+  }
+
   /* 박스아트 워드마크 — 아웃라인 + 하드 드롭섀도 */
   .wordmark {
     font-family: var(--font-display);

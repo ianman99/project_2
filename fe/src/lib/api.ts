@@ -71,6 +71,13 @@ export interface DateCourse {
   tips: string[];
 }
 
+export interface MatchProgress {
+  stage: 'matching' | 'course_search' | 'course_shaping';
+  label: string;
+  percent: number;
+  elapsedMs: number;
+}
+
 export interface MatchResult {
   id: string;
   generatedAt: string;
@@ -144,7 +151,8 @@ export const POINT_STATUS_LABEL: Record<PointRequest['status'], string> = {
 export const api = {
   me: () => request<{ user: User }>('/auth/me'),
   points: () => request<{ points: number; transactions: PointTransaction[] }>('/points'),
-  latestMatch: () => request<{ cost: number; result: MatchResult | null }>('/matches'),
+  latestMatch: () =>
+    request<{ cost: number; result: MatchResult | null; progress: MatchProgress | null }>('/matches'),
   matchHistory: () => request<{ items: MatchResult[] }>('/matches/history'),
   fullProfile: () => request<{ profile: Record<string, unknown> }>('/profile'),
   editable: () => request<{ fields: EditableField[]; pending: EditRequest | null }>('/profile/editable'),

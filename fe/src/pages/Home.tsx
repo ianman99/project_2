@@ -1,64 +1,105 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, ApiError, type DateCourse, type MatchResult } from '../lib/api';
+import {
+  api,
+  ApiError,
+  type DateCourse,
+  type MatchProgress,
+  type MatchResult,
+} from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Chip, ErrorText, Panel } from '../components/ui-kit';
+import { Progress } from '../components/Progress';
+
+const POLL_MS = 3000;
 
 export function Home() {
   const { user, setUser } = useAuth();
   const [result, setResult] = useState<MatchResult | null>(null);
+  const [progress, setProgress] = useState<MatchProgress | null>(null);
   const [cost, setCost] = useState(1000);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
-  const [courseLoading, setCourseLoading] = useState(false);
-  const [courseError, setCourseError] = useState('');
 
+  // 코스 자동 생성을 한 번만 시도하기 위한 표시
+  const courseRequested = useRef(false);
+
+  const refresh = useCallback(async () => {
+    const r = await api.latestMatch();
+    setResult(r.result);
+    setProgress(r.progress);
+    setCost(r.cost);
+    return r;
+  }, []);
+
+  // 최초 로드 — 진행 중이던 작업이 있으면 그 상태로 복귀한다.
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
-    api
-      .latestMatch()
-      .then((r) => {
-        setResult(r.result);
-        setCost(r.cost);
-      })
-      .catch(() => { })
+    refresh()
+      .catch(() => {})
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, refresh]);
 
-  /** 코스는 매칭과 분리해 따로 받는다. 추가 과금은 없다. */
-  const loadCourse = async () => {
-    setCourseError('');
-    setCourseLoading(true);
-    try {
-      const { result } = await api.generateDateCourse();
-      setResult(result);
-    } catch (err) {
-      setCourseError(err instanceof ApiError ? err.message : '데이트 코스를 만들지 못했습니다.');
-    } finally {
-      setCourseLoading(false);
-    }
-  };
+  // 진행 중이면 주기적으로 상태를 확인한다.
+  useEffect(() => {
+    if (!progress) return;
+    const timer = setInterval(() => {
+      void refresh()
+        .then(async (r) => {
+          // 매칭이 끝났는데 코스가 없으면 이어서 만든다.
+          if (!r.progress && r.result && !r.result.dateCourse && !courseRequested.current) {
+            courseRequested.current = true;
+            void startCourse();
+          }
+          if (!r.progress) {
+            const { user } = await api.me(); // 차감된 잔액 반영
+            setUser(user);
+          }
+        })
+        .catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [progress, refresh, setUser]);
 
-  const run = async () => {
+  const startMatch = async () => {
     setError('');
-    setCourseError('');
-    setRunning(true);
+    courseRequested.current = false;
     try {
-      const { result } = await api.runMatch();
-      setResult(result); // 매칭 결과를 먼저 보여준다
-      const { user } = await api.me(); // 차감된 잔액 반영
+      // 응답을 기다리지 않는다. 진행 상태는 폴링으로 따라간다.
+      setProgress({ stage: 'matching', label: '매칭을 시작하는 중', percent: 0, elapsedMs: 0 });
+      await api.runMatch();
+      courseRequested.current = true;
+      await refresh();
+      const { user } = await api.me();
       setUser(user);
-      void loadCourse(); // 코스는 뒤이어 채운다
+      void startCourse();
     } catch (err) {
+      setProgress(null);
       setError(err instanceof ApiError ? err.message : '매칭에 실패했습니다.');
-    } finally {
-      setRunning(false);
     }
   };
+
+  const startCourse = async () => {
+    setError('');
+    try {
+      setProgress({
+        stage: 'course_search',
+        label: '데이트 코스를 준비하는 중',
+        percent: 0,
+        elapsedMs: 0,
+      });
+      await api.generateDateCourse();
+      await refresh();
+    } catch (err) {
+      setProgress(null);
+      setError(err instanceof ApiError ? err.message : '데이트 코스를 만들지 못했습니다.');
+    }
+  };
+
+  const busy = progress !== null;
 
   return (
     <>
@@ -73,7 +114,7 @@ export function Home() {
       {!user ? (
         <Panel title="시작하기">
           <p className="mb-3 text-[12px] text-carbon">
-            LG전자 DX SCHOOL 6기 1반 전용 서비스입니다. 학번 이메일로 가입한 뒤 이용할 수 있습니다.
+            6기 1반 24명 전용 서비스입니다. 학번 이메일로 가입한 뒤 이용할 수 있습니다.
           </p>
           <div className="flex gap-2">
             <Link to="/login">
@@ -91,53 +132,48 @@ export function Home() {
       ) : (
         <>
           {result && <MatchCard result={result} />}
+
           {result?.dateCourse ? (
             <DateCourseCard course={result.dateCourse} />
-          ) : result ? (
+          ) : result && !busy ? (
             <Panel title="홍대 데이트 코스">
-              <ErrorText>{courseError}</ErrorText>
-              {courseLoading ? (
-                <p className="legend text-chrome-indigo">
-                  실제 영업 중인 가게를 검색하고 있습니다… 1~2분 걸립니다
-                </p>
-              ) : (
-                <>
-                  <p className="mb-3 text-[12px] text-carbon">
-                    두 분에게 맞는 홍대 하루 코스를 만들어 드립니다. 추가 포인트는 들지 않습니다.
-                  </p>
-                  <Chip variant="signal" onClick={loadCourse}>
-                    {courseError ? '다시 시도' : '데이트 코스 만들기'}
-                  </Chip>
-                </>
-              )}
+              <p className="mb-3 text-[12px] text-carbon">
+                두 분에게 맞는 홍대 하루 코스를 만들어 드립니다. 추가 포인트는 들지 않습니다.
+              </p>
+              <Chip variant="signal" onClick={startCourse}>
+                데이트 코스 만들기
+              </Chip>
             </Panel>
           ) : null}
 
-          <Panel title={result ? '다시 찾기' : '운명의 상대'}>
+          <Panel title={busy ? 'AI 분석 중' : result ? '다시 찾기' : '운명의 상대'}>
             <ErrorText>{error}</ErrorText>
-            {!result && (
-              <p className="mb-3 text-[12px] text-carbon">
-                <strong>{user.name}</strong>님, AI가 프로필을 분석해 가장 잘 맞는 이성을 찾아드립니다.
-              </p>
-            )}
-            <div className="inset mb-3 p-3">
-              <p className="legend mb-1 text-chrome-indigo">비용</p>
-              <p className="text-[12px] text-carbon">
-                1회 {cost.toLocaleString()} P · 보유 {user.points.toLocaleString()} P
-              </p>
-            </div>
-            <Chip variant="signal" onClick={run} disabled={running || user.points < cost}>
-              {running ? 'AI 분석 중…' : result ? '운명의 상대 새로고침' : '운명의 상대 찾기'}
-            </Chip>
-            {running && (
-              <p className="mt-2 text-[11px] text-chrome-indigo">
-                24명 프로필을 읽고, 가장 잘 맞는 상대를 찾고 있습니다. 1~2분 정도 걸리니 이 화면을 유지해 주세요.
-              </p>
-            )}
-            {!running && user.points < cost && (
-              <p className="mt-2 text-[11px] text-brand-red">
-                포인트가 부족합니다. 마이페이지에서 충전을 요청하세요.
-              </p>
+
+            {busy ? (
+              <Progress progress={progress} />
+            ) : (
+              <>
+                {!result && (
+                  <p className="mb-3 text-[12px] text-carbon">
+                    <strong>{user.name}</strong>님, AI가 프로필을 분석해 가장 잘 맞는 이성을
+                    찾아드립니다.
+                  </p>
+                )}
+                <div className="inset mb-3 p-3">
+                  <p className="legend mb-1 text-chrome-indigo">비용</p>
+                  <p className="text-[12px] text-carbon">
+                    1회 {cost.toLocaleString()} P · 보유 {user.points.toLocaleString()} P
+                  </p>
+                </div>
+                <Chip variant="signal" onClick={startMatch} disabled={user.points < cost}>
+                  {result ? '운명의 상대 새로고침' : '운명의 상대 찾기'}
+                </Chip>
+                {user.points < cost && (
+                  <p className="mt-2 text-[11px] text-brand-red">
+                    포인트가 부족합니다. 마이페이지에서 충전을 요청하세요.
+                  </p>
+                )}
+              </>
             )}
           </Panel>
         </>

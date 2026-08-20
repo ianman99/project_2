@@ -114,13 +114,12 @@ export function My() {
             {pointRequests.map((r) => (
               <li key={r.id} className="inset mb-1 flex items-center gap-2 px-2 py-1.5">
                 <span
-                  className={`chip px-2 py-0.5 legend text-carbon ${
-                    r.status === 'pending'
+                  className={`chip px-2 py-0.5 legend text-carbon ${r.status === 'pending'
                       ? 'bg-amber'
                       : r.status === 'approved'
                         ? 'bg-signal'
                         : 'bg-platinum'
-                  }`}
+                    }`}
                 >
                   {POINT_STATUS_LABEL[r.status]}
                 </span>
@@ -141,7 +140,7 @@ export function My() {
 
       <Panel title="내 데이터 전체">
         <p className="mb-2 text-[11px] text-chrome-indigo">
-          서비스가 보관 중인 내 프로필 원본입니다. 전화번호를 포함한 모든 항목이며, 본인만 볼 수 있습니다.
+          서비스가 보관 중인 내 프로필 원본입니다. 본인만 볼 수 있습니다.
         </p>
         <div className="flex gap-2">
           <Chip onClick={() => setShowProfile((v) => !v)}>
@@ -167,13 +166,12 @@ export function My() {
             <div key={req.id} className="inset mb-2 p-2">
               <div className="mb-1 flex items-center gap-2">
                 <span
-                  className={`chip px-2 py-0.5 legend text-carbon ${
-                    req.status === 'pending'
+                  className={`chip px-2 py-0.5 legend text-carbon ${req.status === 'pending'
                       ? 'bg-amber'
                       : req.status === 'approved'
                         ? 'bg-signal'
                         : 'bg-platinum'
-                  }`}
+                    }`}
                 >
                   {EDIT_STATUS_LABEL[req.status]}
                 </span>

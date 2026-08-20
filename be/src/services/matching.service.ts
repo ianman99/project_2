@@ -8,8 +8,40 @@ import type { DateCourse, MatchDoc, MatchResult } from '../types/models';
 
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
-/** 실행 중인 학번. 중복 요청을 막는다 (PRD F-3.5). */
-const running = new Set<string>();
+/** 진행 단계와 예상 소요 시간(ms). 실측 기반 추정치다. */
+export const STAGES = {
+  matching: { label: '프로필 24명을 읽고 궁합을 분석하는 중', estimatedMs: 100_000 },
+  course_search: { label: '홍대에서 실제 영업 중인 가게를 검색하는 중', estimatedMs: 60_000 },
+  course_shaping: { label: '동선에 맞춰 코스를 짜는 중', estimatedMs: 30_000 },
+} as const;
+
+export type Stage = keyof typeof STAGES;
+
+interface Job {
+  stage: Stage;
+  startedAt: number;
+}
+
+/** 진행 중인 작업. 중복 요청을 막고(PRD F-3.5) 진행 상태를 알려준다. */
+const jobs = new Map<string, Job>();
+
+const startJob = (userId: string, stage: Stage) => jobs.set(userId, { stage, startedAt: Date.now() });
+const setStage = (userId: string, stage: Stage) => {
+  const job = jobs.get(userId);
+  if (job) jobs.set(userId, { stage, startedAt: Date.now() });
+};
+
+/** 화면에 보여줄 진행 상태. 없으면 null. */
+export function jobProgress(userId: string) {
+  const job = jobs.get(userId);
+  if (!job) return null;
+
+  const { label, estimatedMs } = STAGES[job.stage];
+  const elapsedMs = Date.now() - job.startedAt;
+  // 예상 시간을 넘겨도 95%에서 멈춘다 — 다 됐다고 오해하게 두지 않는다.
+  const percent = Math.min(95, Math.round((elapsedMs / estimatedMs) * 100));
+  return { stage: job.stage, label, percent, elapsedMs };
+}
 
 /**
  * "곽소윤 님"처럼 띄어 쓴 호칭을 "곽소윤님"으로 붙인다.
@@ -202,7 +234,7 @@ const COURSE_SCHEMA = {
 } as const;
 
 /** 1위 상대와의 홍대 데이트 코스. 실패해도 매칭 자체는 살린다. */
-export async function buildDateCourse(me: any, partner: any) {
+export async function buildDateCourse(me: any, partner: any, onStage?: (s: Stage) => void) {
   try {
     const profiles = `[A]\n${JSON.stringify(trim(me))}\n\n[B]\n${JSON.stringify(trim(partner))}`;
 
@@ -223,6 +255,7 @@ export async function buildDateCourse(me: any, partner: any) {
     if (!searchCalled) console.warn('[match] 데이트 코스: 웹 검색이 호출되지 않음');
 
     // 2단계 — 조사 결과를 구조화된 코스로 정리한다.
+    onStage?.('course_shaping');
     const shaped = await openai.responses.create({
       model: config.openai.model,
       instructions: COURSE_PROMPT,
@@ -249,7 +282,7 @@ export async function buildDateCourse(me: any, partner: any) {
 }
 
 export async function runMatching(userId: string): Promise<MatchDoc> {
-  if (running.has(userId)) {
+  if (jobs.has(userId)) {
     throw new HttpError(409, 'already_running', '매칭이 진행 중입니다. 잠시만 기다려 주세요.');
   }
 
@@ -282,7 +315,7 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
     `위 ${candidates.length}명 전원에 대해 결과를 내라. results 배열의 길이는 정확히 ${candidates.length}이어야 한다.`,
   ].join('\n\n');
 
-  running.add(userId);
+  startJob(userId, 'matching');
   try {
     let results: MatchResult[] = [];
     let usage = { inputTokens: 0, outputTokens: 0 };
@@ -363,12 +396,9 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
 
     return doc;
   } finally {
-    running.delete(userId);
+    jobs.delete(userId);
   }
 }
-
-/** 코스 생성 중인 학번. 중복 호출을 막는다. */
-const buildingCourse = new Set<string>();
 
 /**
  * 최신 매칭의 데이트 코스를 만들어 저장한다.
@@ -379,7 +409,7 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
   if (!doc) throw new HttpError(404, 'no_match', '먼저 운명의 상대를 찾아주세요.');
   if (doc.dateCourse) return doc;
 
-  if (buildingCourse.has(userId)) {
+  if (jobs.has(userId)) {
     throw new HttpError(409, 'already_running', '데이트 코스를 만드는 중입니다.');
   }
 
@@ -387,9 +417,9 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
   const partner = await students().findOne({ _id: doc.results[0]?.candidateId });
   if (!me || !partner) throw new HttpError(404, 'no_profile', '프로필을 찾을 수 없습니다.');
 
-  buildingCourse.add(userId);
+  startJob(userId, 'course_search');
   try {
-    const { course, usage } = await buildDateCourse(me, partner);
+    const { course, usage } = await buildDateCourse(me, partner, (st) => setStage(userId, st));
     if (!course) {
       throw new HttpError(502, 'course_failed', '데이트 코스를 만들지 못했습니다. 다시 시도해 주세요.');
     }
@@ -406,7 +436,7 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
     );
     return { ...doc, dateCourse: course };
   } finally {
-    buildingCourse.delete(userId);
+    jobs.delete(userId);
   }
 }
 

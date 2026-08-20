@@ -3,6 +3,7 @@ import { config } from '../config';
 import { currentStudentNo, requireAuth } from '../middleware/require-auth';
 import {
   generateDateCourse,
+  jobProgress,
   latestMatch,
   matchHistory,
   runMatching,
@@ -35,10 +36,18 @@ function toPublic(doc: MatchDoc) {
   };
 }
 
-/** 저장된 최신 결과. AI를 재호출하지 않는다 (PRD F-4.2). */
+/**
+ * 저장된 최신 결과. AI를 재호출하지 않는다 (PRD F-4.2).
+ * 진행 중인 작업이 있으면 progress를 함께 준다 — 화면을 떠났다 돌아와도 상태가 이어진다.
+ */
 matchesRouter.get('/', async (req, res) => {
-  const doc = await latestMatch(currentStudentNo(req));
-  res.json({ cost: config.match.cost, result: doc ? toPublic(doc) : null });
+  const userId = currentStudentNo(req);
+  const doc = await latestMatch(userId);
+  res.json({
+    cost: config.match.cost,
+    result: doc ? toPublic(doc) : null,
+    progress: jobProgress(userId),
+  });
 });
 
 matchesRouter.get('/history', async (req, res) => {
