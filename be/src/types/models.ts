@@ -99,3 +99,14 @@ export interface ProfileEditRequestDoc {
   resolvedAt: Date | null;
   resolvedBy: string | null;
 }
+
+export interface PointRequestDoc {
+  _id: ObjectId;
+  userId: string;
+  message: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: Date;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+  grantedPoints: number | null;
+}

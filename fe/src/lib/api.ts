@@ -111,6 +111,30 @@ export const EDIT_STATUS_LABEL: Record<EditRequest['status'], string> = {
   rejected: '거절됨',
 };
 
+export interface PointRequest {
+  id: string;
+  userId: string;
+  userName?: string;
+  message: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  resolvedAt: string | null;
+  grantedPoints: number | null;
+}
+
+export interface Balance {
+  userId: string;
+  name: string;
+  points: number;
+  role: Role;
+}
+
+export const POINT_STATUS_LABEL: Record<PointRequest['status'], string> = {
+  pending: '검토 중',
+  approved: '지급됨',
+  rejected: '거절됨',
+};
+
 export const api = {
   me: () => request<{ user: User }>('/auth/me'),
   points: () => request<{ points: number; transactions: PointTransaction[] }>('/points'),
@@ -119,6 +143,15 @@ export const api = {
   fullProfile: () => request<{ profile: Record<string, unknown> }>('/profile'),
   editable: () => request<{ fields: EditableField[]; pending: EditRequest | null }>('/profile/editable'),
   myEditRequests: () => request<{ items: EditRequest[] }>('/profile/edit-requests'),
+  myPointRequests: () => request<{ items: PointRequest[] }>('/points/requests'),
+  requestPoints: (message: string) => post<{ request: PointRequest }>('/points/request', { message }),
+  pointRequests: () => request<{ items: PointRequest[] }>('/admin/point-requests'),
+  approvePoints: (id: string, amount: number) =>
+    post<{ request: PointRequest }>(`/admin/point-requests/${id}/approve`, { amount }),
+  rejectPoints: (id: string) => post<{ request: PointRequest }>(`/admin/point-requests/${id}/reject`),
+  grantPoints: (userId: string, amount: number, memo: string) =>
+    post<{ userId: string; balance: number }>('/admin/grant', { userId, amount, memo }),
+  balances: () => request<{ items: Balance[] }>('/admin/balances'),
   submitEdit: (changes: Record<string, string>) =>
     post<{ request: EditRequest }>('/profile/edit-request', changes),
   editRequests: (status = 'pending') =>

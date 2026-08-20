@@ -3,13 +3,16 @@ import { Link } from 'react-router-dom';
 import {
   api,
   EDIT_STATUS_LABEL,
+  POINT_STATUS_LABEL,
+  ApiError,
   REASON_LABEL,
   type EditRequest,
+  type PointRequest,
   type MatchResult,
   type PointTransaction,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Chip, Panel } from '../components/ui-kit';
+import { Chip, ErrorText, Panel } from '../components/ui-kit';
 import { ProfileTree } from '../components/ProfileTree';
 import { format } from './EditProfile';
 
@@ -21,6 +24,11 @@ export function My() {
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
+  const [pointRequests, setPointRequests] = useState<PointRequest[]>([]);
+  const [showRequest, setShowRequest] = useState(false);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     api.points().then((r) => {
@@ -30,7 +38,24 @@ export function My() {
     api.matchHistory().then((r) => setHistory(r.items));
     api.fullProfile().then((r) => setProfile(r.profile));
     api.myEditRequests().then((r) => setEditRequests(r.items));
+    api.myPointRequests().then((r) => setPointRequests(r.items));
   }, []);
+
+  const sendRequest = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      await api.requestPoints(message);
+      setMessage('');
+      setShowRequest(false);
+      const r = await api.myPointRequests();
+      setPointRequests(r.items);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '요청에 실패했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (!user) return null;
 
@@ -58,9 +83,60 @@ export function My() {
         <p className="mb-3 font-display text-[32px] leading-none text-carbon">
           {(points ?? user.points).toLocaleString()} <span className="text-[14px]">P</span>
         </p>
-        <Chip disabled title="7단계에서 연결됩니다">
-          충전 요청
-        </Chip>
+        <ErrorText>{error}</ErrorText>
+        {showRequest ? (
+          <div>
+            <textarea
+              rows={2}
+              value={message}
+              placeholder="어드민에게 전할 사유를 적어주세요"
+              onChange={(e) => setMessage(e.target.value)}
+              className="inset mb-2 w-full p-2 text-[12px] text-carbon"
+            />
+            <div className="flex items-center gap-2">
+              <Chip variant="signal" onClick={sendRequest} disabled={busy || !message.trim()}>
+                {busy ? '보내는 중' : '요청 보내기'}
+              </Chip>
+              <button
+                onClick={() => setShowRequest(false)}
+                className="text-[11px] text-chrome-indigo underline"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        ) : (
+          <Chip onClick={() => setShowRequest(true)}>충전 요청</Chip>
+        )}
+
+        {pointRequests.length > 0 && (
+          <ul className="mt-3 text-[12px] text-carbon">
+            {pointRequests.map((r) => (
+              <li key={r.id} className="inset mb-1 flex items-center gap-2 px-2 py-1.5">
+                <span
+                  className={`chip px-2 py-0.5 legend text-carbon ${
+                    r.status === 'pending'
+                      ? 'bg-amber'
+                      : r.status === 'approved'
+                        ? 'bg-signal'
+                        : 'bg-platinum'
+                  }`}
+                >
+                  {POINT_STATUS_LABEL[r.status]}
+                </span>
+                <span className="flex-1 break-words">{r.message}</span>
+                {r.grantedPoints != null && (
+                  <span className="font-bold text-chrome-indigo">
+                    +{r.grantedPoints.toLocaleString()} P
+                  </span>
+                )}
+                <span className="w-24 shrink-0 text-right text-[10px] text-muted-indigo">
+                  {new Date(r.requestedAt).toLocaleDateString('ko-KR')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Panel>
 
       <Panel title="내 데이터 전체">
