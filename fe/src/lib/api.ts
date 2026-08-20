@@ -1,5 +1,9 @@
-// 배포에서는 같은 오리진이라 빈 문자열, 개발에서는 백엔드 포트를 가리킨다.
-const HOST = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000';
+/**
+ * 배포 빌드는 같은 서버가 API도 서빙하므로 오리진을 비운다(상대경로 요청).
+ * 개발에서는 vite(5173)와 백엔드(4000) 포트가 달라 명시해야 한다.
+ * 프론트를 따로 배포할 때만 VITE_API_BASE로 덮어쓴다.
+ */
+const HOST = import.meta.env.VITE_API_BASE ?? (import.meta.env.PROD ? '' : 'http://localhost:4000');
 const BASE = `${HOST}/api`;
 
 export type Role = 'user' | 'admin';
