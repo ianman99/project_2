@@ -93,7 +93,7 @@ export function Home() {
             </Chip>
             {running && (
               <p className="mt-2 text-[11px] text-chrome-indigo">
-                24명 프로필을 읽고, 홍대 가게를 검색하고 있습니다. 1~2분 정도 걸리니 이 화면을 유지해 주세요.
+                24명 프로필을 읽고, 가장 잘 맞는 상대를 찾고 있습니다. 1~2분 정도 걸리니 이 화면을 유지해 주세요.
               </p>
             )}
             {!running && user.points < cost && (
