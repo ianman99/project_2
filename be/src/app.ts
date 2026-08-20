@@ -6,6 +6,7 @@ import { authRouter } from './routes/auth';
 import { pointsRouter } from './routes/points';
 import { matchesRouter } from './routes/matches';
 import { profileRouter } from './routes/profile';
+import { adminRouter } from './routes/admin';
 import { createSessionMiddleware } from './middleware/session';
 import { errorHandler, notFoundHandler } from './middleware/error';
 
@@ -30,6 +31,7 @@ export function createApp() {
   app.use('/points', pointsRouter);
   app.use('/matches', matchesRouter);
   app.use('/profile', profileRouter);
+  app.use('/admin', adminRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { My } from './pages/My';
+import { EditProfile } from './pages/EditProfile';
 import { Admin } from './pages/Admin';
 
 /** 로그인 필요. admin 옵션이면 어드민만 통과한다. */
@@ -30,6 +31,14 @@ export default function App() {
               element={
                 <Guard>
                   <My />
+                </Guard>
+              }
+            />
+            <Route
+              path="my/edit"
+              element={
+                <Guard>
+                  <EditProfile />
                 </Guard>
               }
             />

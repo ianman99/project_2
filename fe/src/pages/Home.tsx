@@ -23,7 +23,7 @@ export function Home() {
         setResult(r.result);
         setCost(r.cost);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [user]);
 
@@ -46,7 +46,7 @@ export function Home() {
     <>
       <div className="plate mb-4 bg-lavender p-8 text-center">
         <img src="/logo.png" alt="" className="mx-auto mb-3 h-20 w-20" />
-        <h1 className="wordmark text-[44px] leading-none">사랑찾아 인생찾아</h1>
+        <h1 className="wordmark text-[44px] leading-none">사랑찾아 인생을찾아</h1>
         <p className="mt-3 text-[15px] font-bold text-carbon">
           DX SCHOOL 6기 1반, 나에게 가장 잘 맞는 사람은 누구일까
         </p>
@@ -113,7 +113,7 @@ function MatchCard({ result }: { result: MatchResult }) {
   return (
     <Panel title="당신의 운명의 상대">
       <div className="mb-3 flex items-baseline gap-3">
-        <span className="font-display text-[32px] leading-none text-carbon">{match.name}</span>
+        <span className="font-display text-[32px] leading-none text-carbon">{match.name}님</span>
         <span className="font-display text-[32px] leading-none text-brand-red">{match.score}%</span>
       </div>
       <p className="inset mb-3 p-3 text-[13px] font-bold text-carbon">{match.headline}</p>

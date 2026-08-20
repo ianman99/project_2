@@ -82,3 +82,20 @@ export interface DateCourse {
   stops: DateCourseStop[];
   tips: string[];
 }
+
+export interface ProfileEditChange {
+  path: string;
+  label: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface ProfileEditRequestDoc {
+  _id: ObjectId;
+  userId: string;
+  changes: ProfileEditChange[];
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: Date;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+}

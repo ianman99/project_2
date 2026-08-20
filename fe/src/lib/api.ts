@@ -80,12 +80,51 @@ export interface MatchResult {
   };
 }
 
+export interface EditableField {
+  path: string;
+  label: string;
+  type: 'text' | 'textarea' | 'list';
+  hint?: string;
+  value: string | string[] | null;
+}
+
+export interface EditChange {
+  path: string;
+  label: string;
+  before: unknown;
+  after: unknown;
+}
+
+export interface EditRequest {
+  id: string;
+  userId: string;
+  userName?: string;
+  changes: EditChange[];
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  resolvedAt: string | null;
+}
+
+export const EDIT_STATUS_LABEL: Record<EditRequest['status'], string> = {
+  pending: '검토 중',
+  approved: '반영됨',
+  rejected: '거절됨',
+};
+
 export const api = {
   me: () => request<{ user: User }>('/auth/me'),
   points: () => request<{ points: number; transactions: PointTransaction[] }>('/points'),
   latestMatch: () => request<{ cost: number; result: MatchResult | null }>('/matches'),
   matchHistory: () => request<{ items: MatchResult[] }>('/matches/history'),
   fullProfile: () => request<{ profile: Record<string, unknown> }>('/profile'),
+  editable: () => request<{ fields: EditableField[]; pending: EditRequest | null }>('/profile/editable'),
+  myEditRequests: () => request<{ items: EditRequest[] }>('/profile/edit-requests'),
+  submitEdit: (changes: Record<string, string>) =>
+    post<{ request: EditRequest }>('/profile/edit-request', changes),
+  editRequests: (status = 'pending') =>
+    request<{ items: EditRequest[] }>(`/admin/edit-requests?status=${status}`),
+  approveEdit: (id: string) => post<{ request: EditRequest }>(`/admin/edit-requests/${id}/approve`),
+  rejectEdit: (id: string) => post<{ request: EditRequest }>(`/admin/edit-requests/${id}/reject`),
   runMatch: () => post<{ result: MatchResult }>('/matches'),
   requestCode: (email: string) => post<{ expiresInMinutes: number }>('/auth/signup/request', { email }),
   verifySignup: (email: string, code: string, password: string) =>

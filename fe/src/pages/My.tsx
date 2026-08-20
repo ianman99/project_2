@@ -1,8 +1,17 @@
 import { useEffect, useState } from 'react';
-import { api, REASON_LABEL, type MatchResult, type PointTransaction } from '../lib/api';
+import { Link } from 'react-router-dom';
+import {
+  api,
+  EDIT_STATUS_LABEL,
+  REASON_LABEL,
+  type EditRequest,
+  type MatchResult,
+  type PointTransaction,
+} from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Chip, Panel } from '../components/ui-kit';
 import { ProfileTree } from '../components/ProfileTree';
+import { format } from './EditProfile';
 
 export function My() {
   const { user } = useAuth();
@@ -11,6 +20,7 @@ export function My() {
   const [history, setHistory] = useState<MatchResult[]>([]);
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
 
   useEffect(() => {
     api.points().then((r) => {
@@ -19,6 +29,7 @@ export function My() {
     });
     api.matchHistory().then((r) => setHistory(r.items));
     api.fullProfile().then((r) => setProfile(r.profile));
+    api.myEditRequests().then((r) => setEditRequests(r.items));
   }, []);
 
   if (!user) return null;
@@ -56,9 +67,14 @@ export function My() {
         <p className="mb-2 text-[11px] text-chrome-indigo">
           서비스가 보관 중인 내 프로필 원본입니다. 전화번호를 포함한 모든 항목이며, 본인만 볼 수 있습니다.
         </p>
-        <Chip onClick={() => setShowProfile((v) => !v)}>
-          {showProfile ? '접기' : '펼쳐 보기'}
-        </Chip>
+        <div className="flex gap-2">
+          <Chip onClick={() => setShowProfile((v) => !v)}>
+            {showProfile ? '접기' : '펼쳐 보기'}
+          </Chip>
+          <Link to="/my/edit">
+            <Chip variant="signal">내 정보 수정</Chip>
+          </Link>
+        </div>
         {showProfile &&
           (profile ? (
             <div className="mt-3">
@@ -68,6 +84,43 @@ export function My() {
             <p className="mt-3 legend text-chrome-indigo">불러오는 중…</p>
           ))}
       </Panel>
+
+      {editRequests.length > 0 && (
+        <Panel title="수정 요청 상태">
+          {editRequests.map((req) => (
+            <div key={req.id} className="inset mb-2 p-2">
+              <div className="mb-1 flex items-center gap-2">
+                <span
+                  className={`chip px-2 py-0.5 legend text-carbon ${
+                    req.status === 'pending'
+                      ? 'bg-amber'
+                      : req.status === 'approved'
+                        ? 'bg-signal'
+                        : 'bg-platinum'
+                  }`}
+                >
+                  {EDIT_STATUS_LABEL[req.status]}
+                </span>
+                <span className="text-[10px] text-muted-indigo">
+                  {new Date(req.requestedAt).toLocaleString('ko-KR')} 요청
+                  {req.resolvedAt &&
+                    ` · ${new Date(req.resolvedAt).toLocaleString('ko-KR')} 처리`}
+                </span>
+              </div>
+              <ul className="text-[12px] text-carbon">
+                {req.changes.map((c) => (
+                  <li key={c.path} className="border-l-2 border-chrome-indigo pl-2">
+                    <span className="legend mr-2 text-chrome-indigo">{c.label}</span>
+                    <span className="text-muted-indigo line-through">{format(c.before)}</span>
+                    <span className="mx-1">→</span>
+                    <span className="font-bold">{format(c.after)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </Panel>
+      )}
 
       <Panel title="매칭 이력">
         {history.length === 0 ? (

@@ -2,7 +2,6 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
 const NAV = [
-  { to: '/', label: '운명찾기' },
   { to: '/my', label: '마이페이지' },
 ];
 
@@ -26,7 +25,7 @@ export function Layout() {
             className="flex shrink-0 items-center gap-1.5 rounded-full bg-white py-0.5 pl-1.5 pr-3"
           >
             <img src="/logo.png" alt="" className="h-6 w-6" />
-            <span className="font-display text-[13px] text-brand-red">사랑찾아</span>
+            <span className="font-display text-[13px] text-brand-red">사랑찾아 인생을찾아</span>
           </Link>
 
           {user &&
@@ -76,7 +75,7 @@ export function Layout() {
       {/* 보조 스트립 */}
       <div className="bg-canvas-soft border-b-2 border-chrome-indigo">
         <div className="mx-auto max-w-[820px] px-3 py-1">
-          <span className="legend text-carbon">LG전자 DX SCHOOL 6기 1반 전용</span>
+          <span className="legend text-carbon">LG전자 DX SCHOOL 6기 1반</span>
         </div>
       </div>
 

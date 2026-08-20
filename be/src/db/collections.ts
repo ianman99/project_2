@@ -3,6 +3,7 @@ import type {
   EmailVerificationDoc,
   PointTransactionDoc,
   MatchDoc,
+  ProfileEditRequestDoc,
   StudentDoc,
   UserDoc,
 } from '../types/models';
@@ -12,6 +13,8 @@ export const users = () => getCollection<UserDoc>('users');
 export const emailVerifications = () => getCollection<EmailVerificationDoc>('email_verifications');
 export const pointTransactions = () => getCollection<PointTransactionDoc>('point_transactions');
 export const matches = () => getCollection<MatchDoc>('matches');
+export const profileEditRequests = () =>
+  getCollection<ProfileEditRequestDoc>('profile_edit_requests');
 
 /**
  * 기동 시 인덱스를 보장한다. createIndex는 멱등이라 매번 호출해도 안전하다.
@@ -25,4 +28,6 @@ export async function ensureIndexes(): Promise<void> {
 
   await pointTransactions().createIndex({ userId: 1, createdAt: -1 });
   await matches().createIndex({ userId: 1, generatedAt: -1 });
+  await profileEditRequests().createIndex({ status: 1, requestedAt: -1 });
+  await profileEditRequests().createIndex({ userId: 1, requestedAt: -1 });
 }
