@@ -1,4 +1,6 @@
-const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000';
+// 배포에서는 같은 오리진이라 빈 문자열, 개발에서는 백엔드 포트를 가리킨다.
+const HOST = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000';
+const BASE = `${HOST}/api`;
 
 export type Role = 'user' | 'admin';
 

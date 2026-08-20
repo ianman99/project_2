@@ -55,7 +55,7 @@ export function Home() {
       {!user ? (
         <Panel title="시작하기">
           <p className="mb-3 text-[12px] text-carbon">
-            6기 1반 24명 전용 서비스입니다. 학번 이메일로 가입한 뒤 이용할 수 있습니다.
+            LG전자 DX SCHOOL 6기 1반 전용 서비스입니다. 학번 이메일로 가입한 뒤 이용할 수 있습니다.
           </p>
           <div className="flex gap-2">
             <Link to="/login">

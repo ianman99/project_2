@@ -24,6 +24,8 @@ export const config = {
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
+    /** 프론트 빌드본 경로. 지정하면 같은 서버에서 서빙한다 (배포용). */
+    staticDir: process.env.STATIC_DIR ?? null,
   },
   mongo: {
     uri: required('MONGODB_URI'),

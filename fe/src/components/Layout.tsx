@@ -15,7 +15,7 @@ export function Layout() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       {/* 커맨드 슬랩 — 주 내비 */}
       <header className="slab">
         <div className="mx-auto flex h-9 max-w-[820px] items-center gap-4 px-3">
@@ -79,13 +79,13 @@ export function Layout() {
         </div>
       </div>
 
-      <main className="mx-auto max-w-[820px] px-3 py-4">
+      <main className="mx-auto w-full max-w-[820px] flex-1 px-3 py-4">
         <Outlet />
       </main>
 
-      <footer className="slab mt-8">
+      <footer className="slab">
         <div className="mx-auto max-w-[820px] px-3 py-3">
-          <span className="text-[10px] text-canvas">사랑찾아 인생찾아 · 24명 한정 서비스</span>
+          <span className="text-[10px] text-canvas">사랑찾아 인생을찾아 · Copyright © ianman99 All rights reserved.</span>
         </div>
       </footer>
     </div>
