@@ -12,6 +12,22 @@ const openai = new OpenAI({ apiKey: config.openai.apiKey });
 const running = new Set<string>();
 
 /**
+ * "곽소윤 님"처럼 띄어 쓴 호칭을 "곽소윤님"으로 붙인다.
+ * 프롬프트로 지시해도 가끔 새어나가서 저장 직전에 한 번 더 정리한다.
+ */
+function fixHonorific<T>(value: T, names: string[]): T {
+  const targets = names.filter(Boolean);
+  if (targets.length === 0) return value;
+
+  let json = JSON.stringify(value);
+  for (const name of targets) {
+    // 한글 이름이라 정규식 특수문자가 없다. 이름 + 공백 + 님만 붙인다.
+    json = json.split(`${name} 님`).join(`${name}님`);
+  }
+  return JSON.parse(json) as T;
+}
+
+/**
  * AI에 넘길 프로필을 추린다.
  * phone은 어떤 경로로도 나가면 안 된다 (PRD S-1). cohort/teams 상세/메타도 제외한다.
  */
@@ -75,6 +91,7 @@ const SYSTEM_PROMPT = `너는 LG전자 DX SCHOOL 6기 1반 24명을 위한 커�
 - headline은 왜 잘 맞는지 한 문장으로 요약한다.
 - **사람 이름 뒤에는 항상 "님"을 붙인다.** 사용자 본인과 후보 모두 예외 없다.
   "장세미는" 대신 "장세미님은", "지인환과" 대신 "지인환님과"처럼 쓴다.
+  **띄어쓰기 없이 이름에 바로 붙인다.** "장세미님"이 맞고 "장세미 님"은 틀리다.
   조사는 "님" 뒤에 자연스럽게 붙인다 (님은/님이/님과/님에게/님께서).
 
 분량과 깊이 — 각 항목은 두세 문장으로 충분히 풀어 쓴다. 한 줄짜리 요약은 쓰지 마라:
@@ -154,7 +171,9 @@ const COURSE_PROMPT = `너는 홍대 데이트 코스 플래너다.
 - why에는 이 가게를 왜 이 두 사람에게 골랐는지 프로필 근거를 들어 설명한다.
 - tips는 2~4개. 조사 결과에 나온 영업시간·웨이팅·예약 정보를 우선 쓴다.
 - 모든 문장은 한국어로 쓴다.
-- 사람 이름 뒤에는 항상 "님"을 붙인다. 두 사람 모두 예외 없다.`;
+- 사람 이름 뒤에는 항상 "님"을 붙인다. 두 사람 모두 예외 없다.
+  **띄어쓰기 없이 이름에 바로 붙인다.** "곽소윤님"이 맞고 "곽소윤 님"은 틀리다.
+  title에도 같은 규칙을 적용한다.`;
 
 const COURSE_SCHEMA = {
   type: 'object',
@@ -215,8 +234,9 @@ export async function buildDateCourse(me: any, partner: any) {
     });
 
     const raw = shaped.output_text;
+    const course = raw ? (JSON.parse(raw) as DateCourse) : null;
     return {
-      course: raw ? (JSON.parse(raw) as DateCourse) : null,
+      course: course ? fixHonorific(course, [me.name, partner.name]) : null,
       usage: {
         inputTokens: (search.usage?.input_tokens ?? 0) + (shaped.usage?.input_tokens ?? 0),
         outputTokens: (search.usage?.output_tokens ?? 0) + (shaped.usage?.output_tokens ?? 0),
@@ -300,7 +320,7 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
         continue;
       }
 
-      results = (parsed.results ?? [])
+      results = (fixHonorific(parsed.results, [me.name, ...nameById.values()]) ?? [])
         .filter((r) => nameById.has(r.candidateId))
         .map((r) => ({
           ...r,
@@ -320,13 +340,8 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
       throw new HttpError(502, 'ai_invalid', 'AI 결과를 해석할 수 없습니다. 다시 시도해 주세요.');
     }
 
-    // 1위가 정해졌으니 그 상대와의 데이트 코스를 뽑는다.
-    const top = candidates.find((c) => c._id === results[0].candidateId);
-    const { course, usage: courseUsage } = top
-      ? await buildDateCourse(me, top)
-      : { course: null, usage: { inputTokens: 0, outputTokens: 0 } };
-
-    // 여기까지 왔으면 결과가 확보됐다. 이제 차감한다.
+    // 데이트 코스는 여기서 만들지 않는다. 매칭 결과를 먼저 보여주고,
+    // 코스는 generateDateCourse()로 따로 요청받아 채운다 (체감 대기시간 단축).
     const doc: MatchDoc = {
       _id: new ObjectId(),
       userId,
@@ -334,11 +349,8 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
       isRefresh,
       model: config.openai.model,
       results,
-      dateCourse: course,
-      usage: {
-        inputTokens: usage.inputTokens + courseUsage.inputTokens,
-        outputTokens: usage.outputTokens + courseUsage.outputTokens,
-      },
+      dateCourse: null,
+      usage,
     };
 
     await spend({
@@ -352,6 +364,49 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
     return doc;
   } finally {
     running.delete(userId);
+  }
+}
+
+/** 코스 생성 중인 학번. 중복 호출을 막는다. */
+const buildingCourse = new Set<string>();
+
+/**
+ * 최신 매칭의 데이트 코스를 만들어 저장한다.
+ * 이미 있으면 그대로 돌려주고, 추가 과금은 없다.
+ */
+export async function generateDateCourse(userId: string): Promise<MatchDoc> {
+  const doc = await latestMatch(userId);
+  if (!doc) throw new HttpError(404, 'no_match', '먼저 운명의 상대를 찾아주세요.');
+  if (doc.dateCourse) return doc;
+
+  if (buildingCourse.has(userId)) {
+    throw new HttpError(409, 'already_running', '데이트 코스를 만드는 중입니다.');
+  }
+
+  const me = await students().findOne({ _id: userId });
+  const partner = await students().findOne({ _id: doc.results[0]?.candidateId });
+  if (!me || !partner) throw new HttpError(404, 'no_profile', '프로필을 찾을 수 없습니다.');
+
+  buildingCourse.add(userId);
+  try {
+    const { course, usage } = await buildDateCourse(me, partner);
+    if (!course) {
+      throw new HttpError(502, 'course_failed', '데이트 코스를 만들지 못했습니다. 다시 시도해 주세요.');
+    }
+
+    await matches().updateOne(
+      { _id: doc._id },
+      {
+        $set: { dateCourse: course },
+        $inc: {
+          'usage.inputTokens': usage.inputTokens,
+          'usage.outputTokens': usage.outputTokens,
+        },
+      },
+    );
+    return { ...doc, dateCourse: course };
+  } finally {
+    buildingCourse.delete(userId);
   }
 }
 

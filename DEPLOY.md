@@ -44,7 +44,7 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 | `MONGODB_DB` | `dxschool` | |
 | `SMTP_*`, `MAIL_*` | 네이버 SMTP | |
 | `OPENAI_API_KEY` | OpenAI 키 | |
-| `OPENAI_MODEL` | `gpt-4o` | |
+| `OPENAI_MODEL` | `gpt-5.6-terra` | |
 | `ADMIN_STUDENT_NO` | `6155` | |
 | `MATCH_COST` | `1000` | |
 

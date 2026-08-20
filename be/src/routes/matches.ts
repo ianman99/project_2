@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { config } from '../config';
 import { currentStudentNo, requireAuth } from '../middleware/require-auth';
-import { latestMatch, matchHistory, runMatching } from '../services/matching.service';
+import {
+  generateDateCourse,
+  latestMatch,
+  matchHistory,
+  runMatching,
+} from '../services/matching.service';
 import type { MatchDoc } from '../types/models';
 
 export const matchesRouter = Router();
@@ -45,4 +50,10 @@ matchesRouter.get('/history', async (req, res) => {
 matchesRouter.post('/', async (req, res) => {
   const doc = await runMatching(currentStudentNo(req));
   res.status(201).json({ result: toPublic(doc) });
+});
+
+/** 데이트 코스 생성. 매칭과 분리해 결과를 먼저 보여줄 수 있게 한다. 추가 과금 없음. */
+matchesRouter.post('/date-course', async (req, res) => {
+  const doc = await generateDateCourse(currentStudentNo(req));
+  res.json({ result: toPublic(doc) });
 });

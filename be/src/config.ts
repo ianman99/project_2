@@ -49,7 +49,7 @@ export const config = {
   },
   openai: {
     apiKey: required('OPENAI_API_KEY'),
-    model: optional('OPENAI_MODEL', 'gpt-4o-mini'),
+    model: optional('OPENAI_MODEL', 'gpt-5.6-terra'),
   },
   match: {
     /** 최초 매칭·새로고침 모두 동일 비용 (PRD F-5.2) */

@@ -11,6 +11,8 @@ export function Home() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
+  const [courseLoading, setCourseLoading] = useState(false);
+  const [courseError, setCourseError] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -27,14 +29,30 @@ export function Home() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  /** 코스는 매칭과 분리해 따로 받는다. 추가 과금은 없다. */
+  const loadCourse = async () => {
+    setCourseError('');
+    setCourseLoading(true);
+    try {
+      const { result } = await api.generateDateCourse();
+      setResult(result);
+    } catch (err) {
+      setCourseError(err instanceof ApiError ? err.message : '데이트 코스를 만들지 못했습니다.');
+    } finally {
+      setCourseLoading(false);
+    }
+  };
+
   const run = async () => {
     setError('');
+    setCourseError('');
     setRunning(true);
     try {
       const { result } = await api.runMatch();
-      setResult(result);
+      setResult(result); // 매칭 결과를 먼저 보여준다
       const { user } = await api.me(); // 차감된 잔액 반영
       setUser(user);
+      void loadCourse(); // 코스는 뒤이어 채운다
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '매칭에 실패했습니다.');
     } finally {
@@ -73,7 +91,27 @@ export function Home() {
       ) : (
         <>
           {result && <MatchCard result={result} />}
-          {result?.dateCourse && <DateCourseCard course={result.dateCourse} />}
+          {result?.dateCourse ? (
+            <DateCourseCard course={result.dateCourse} />
+          ) : result ? (
+            <Panel title="홍대 데이트 코스">
+              <ErrorText>{courseError}</ErrorText>
+              {courseLoading ? (
+                <p className="legend text-chrome-indigo">
+                  실제 영업 중인 가게를 검색하고 있습니다… 1~2분 걸립니다
+                </p>
+              ) : (
+                <>
+                  <p className="mb-3 text-[12px] text-carbon">
+                    두 분에게 맞는 홍대 하루 코스를 만들어 드립니다. 추가 포인트는 들지 않습니다.
+                  </p>
+                  <Chip variant="signal" onClick={loadCourse}>
+                    {courseError ? '다시 시도' : '데이트 코스 만들기'}
+                  </Chip>
+                </>
+              )}
+            </Panel>
+          ) : null}
 
           <Panel title={result ? '다시 찾기' : '운명의 상대'}>
             <ErrorText>{error}</ErrorText>

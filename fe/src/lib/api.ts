@@ -161,6 +161,7 @@ export const api = {
   approveEdit: (id: string) => post<{ request: EditRequest }>(`/admin/edit-requests/${id}/approve`),
   rejectEdit: (id: string) => post<{ request: EditRequest }>(`/admin/edit-requests/${id}/reject`),
   runMatch: () => post<{ result: MatchResult }>('/matches'),
+  generateDateCourse: () => post<{ result: MatchResult }>('/matches/date-course'),
   requestCode: (email: string) => post<{ expiresInMinutes: number }>('/auth/signup/request', { email }),
   verifySignup: (email: string, code: string, password: string) =>
     post<{ user: User }>('/auth/signup/verify', { email, code, password }),
