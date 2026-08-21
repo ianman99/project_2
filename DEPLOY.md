@@ -42,10 +42,10 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 | `SESSION_SECRET` | 새로 생성 | `openssl rand -hex 32` |
 | `MONGODB_URI` | Atlas 커넥션 스트링 | 아래 주의사항 참조 |
 | `MONGODB_DB` | `dxschool` | |
-| `RESEND_API_KEY` | Resend API 키 | **Render에서는 필수** — 아래 참조 |
-| `MAIL_FROM_ADDRESS` | `noreply@dxschool.co.kr` | Resend에 인증된 도메인이어야 한다 |
+| `BREVO_API_KEY` | Brevo API 키 | **Render에서는 필수** — 아래 참조 |
+| `MAIL_FROM_ADDRESS` | Brevo에 인증한 발신자 주소 | 예: `ianman99@naver.com` |
 | `MAIL_FROM_NAME` | `사랑찾아 인생찾아` | |
-| `SMTP_*` | 설정하지 않음 | `RESEND_API_KEY`가 있으면 무시된다 |
+| `SMTP_*` | 설정하지 않음 | `BREVO_API_KEY`가 있으면 무시된다 |
 | `OPENAI_API_KEY` | OpenAI 키 | |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | |
 | `ADMIN_STUDENT_NO` | `6155` | |
@@ -68,7 +68,7 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 ### 확인할 것
 
 - [ ] 배포 서버에서 실제로 인증 메일이 도착하는지 (회원가입 1단계를 직접 눌러 확인)
-- [ ] Resend 무료 한도 — 월 3,000통 / 일 100통. 24명 규모면 문제없음
+- [ ] Brevo 무료 한도 — 하루 300통. 24명 규모면 문제없음
 - [ ] 첫 요청 시 인덱스가 자동 생성됨 (`ensureIndexes`) — 별도 마이그레이션 불필요
 
 ## 메일 발송 — Render에서는 SMTP를 쓸 수 없다
@@ -77,21 +77,32 @@ Render 무료 플랜은 **아웃바운드 SMTP 포트(25·465·587)를 차단**�
 네이버 SMTP로 보내면 `ETIMEDOUT / command: 'CONN'`으로 실패한다. 코드나 계정 문제가 아니다.
 포트 25는 유료 플랜에서도 영구 차단이다.
 
-그래서 `RESEND_API_KEY`가 설정돼 있으면 SMTP 대신 **Resend HTTP API(443)** 로 보낸다.
+그래서 `BREVO_API_KEY`가 설정돼 있으면 SMTP 대신 **Brevo HTTP API(443)** 로 보낸다.
 설정이 없으면 기존 네이버 SMTP를 그대로 쓰므로 로컬 개발은 바뀌지 않는다.
+
+`dxschool.co.kr`은 학교(Microsoft 365) 도메인이라 DNS를 건드릴 수 없다.
+그래서 도메인 인증이 필요한 Resend 대신, **발신자 이메일 1개만 인증하면 되는 Brevo**를 쓴다.
 
 설정 순서:
 
-1. [resend.com](https://resend.com) 가입 (무료: 월 3,000통, 일 100통)
-2. **Domains → Add Domain**에 `dxschool.co.kr` 등록
-3. Resend가 알려주는 DNS 레코드(TXT/MX 계열)를 `dxschool.co.kr` DNS에 추가하고 인증 완료를 기다린다
-   - 기존 수신 설정은 건드리지 않는다. 발송용 레코드만 추가된다.
-4. **API Keys → Create API Key** (권한은 `Sending access`면 충분)
-5. Render 환경변수에 추가
-   - `RESEND_API_KEY=re_...`
-   - `MAIL_FROM_ADDRESS=noreply@dxschool.co.kr` ← **반드시 인증한 도메인의 주소로 바꾼다.**
-     네이버 주소를 그대로 두면 Resend가 403으로 거부한다.
-6. 재배포 후 회원가입 1단계를 눌러 메일 도착 확인
+1. [brevo.com](https://www.brevo.com) 가입 (무료: 하루 300통)
+2. **Senders, Domains & Dedicated IPs → Senders → Add a Sender**
+   - 발신자 주소에 `ianman99@naver.com` 입력 → 그 주소로 온 확인 메일의 링크 클릭
+   - 도메인 인증(Domains 탭)은 하지 않아도 된다
+3. **SMTP & API → API Keys → Generate a new API key**
+4. Render 환경변수에 추가
+   - `BREVO_API_KEY=xkeysib-...`
+   - `MAIL_FROM_ADDRESS=ianman99@naver.com` ← **2번에서 인증한 주소와 정확히 같아야 한다**
+5. 재배포 후 회원가입 1단계를 눌러 메일 도착 확인
+
+### 도달률 참고
+
+`naver.com`의 DMARC는 `p=none`이라 제3자 발송이 정책으로 차단되지는 않는다.
+다만 DKIM이 `naver.com`과 정렬되지 않으므로 수신 측(Microsoft 365)에서
+정크메일함으로 갈 가능성이 있다. 가입자에게 정크메일함도 확인하도록 안내한다.
+
+발송 실패 시 Render 로그의 `[mail] 인증코드 발송 실패:` 줄에
+Brevo 응답 본문이 그대로 찍힌다 (발신자 미인증, 키 오류, 한도 초과 등).
 
 ## 플랫폼별 메모
 

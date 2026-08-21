@@ -15,11 +15,11 @@ function optional(name: string, fallback: string): string {
 const nodeEnv = optional('NODE_ENV', 'development');
 
 /**
- * Resend를 쓰면 SMTP 설정은 필요 없다.
- * Render 무료 플랜이 SMTP 포트를 막아서 배포 환경에서는 Resend로 보낸다.
+ * Brevo를 쓰면 SMTP 설정은 필요 없다.
+ * Render 무료 플랜이 SMTP 포트를 막아서 배포 환경에서는 Brevo HTTP API로 보낸다.
  */
-const resendApiKey = process.env.RESEND_API_KEY ?? null;
-const smtp = resendApiKey
+const brevoApiKey = process.env.BREVO_API_KEY ?? null;
+const smtp = brevoApiKey
   ? null
   : {
       host: required('SMTP_HOST'),
@@ -49,7 +49,7 @@ export const config = {
   mail: {
     fromAddress: required('MAIL_FROM_ADDRESS'),
     fromName: optional('MAIL_FROM_NAME', '사랑찾아 인생찾아'),
-    resendApiKey,
+    brevoApiKey,
   },
   auth: {
     sessionSecret: required('SESSION_SECRET'),
