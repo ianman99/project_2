@@ -14,6 +14,20 @@ function optional(name: string, fallback: string): string {
 
 const nodeEnv = optional('NODE_ENV', 'development');
 
+/**
+ * Resend를 쓰면 SMTP 설정은 필요 없다.
+ * Render 무료 플랜이 SMTP 포트를 막아서 배포 환경에서는 Resend로 보낸다.
+ */
+const resendApiKey = process.env.RESEND_API_KEY ?? null;
+const smtp = resendApiKey
+  ? null
+  : {
+      host: required('SMTP_HOST'),
+      port: Number(required('SMTP_PORT')),
+      user: required('SMTP_USER'),
+      pass: required('SMTP_PASS'),
+    };
+
 export const config = {
   env: nodeEnv,
   isProduction: nodeEnv === 'production',
@@ -31,15 +45,11 @@ export const config = {
     uri: required('MONGODB_URI'),
     db: required('MONGODB_DB'),
   },
-  smtp: {
-    host: required('SMTP_HOST'),
-    port: Number(required('SMTP_PORT')),
-    user: required('SMTP_USER'),
-    pass: required('SMTP_PASS'),
-  },
+  smtp,
   mail: {
     fromAddress: required('MAIL_FROM_ADDRESS'),
     fromName: optional('MAIL_FROM_NAME', '사랑찾아 인생찾아'),
+    resendApiKey,
   },
   auth: {
     sessionSecret: required('SESSION_SECRET'),

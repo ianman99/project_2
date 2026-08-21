@@ -70,7 +70,20 @@ export async function requestSignupCode(rawEmail: string): Promise<{ expiresInMi
   });
 
   const mail = buildVerificationMail(code, config.verification.expiresInMinutes);
-  await sendMail({ to: email, ...mail });
+  try {
+    await sendMail({ to: email, ...mail });
+  } catch (err) {
+    // 재시도해도 소용없는 경우가 대부분이라(호스팅이 SMTP 포트를 막는 등)
+    // 원인을 로그로 남기고 사용자에게는 다음 행동을 알려준다.
+    console.error('[mail] 인증코드 발송 실패:', err);
+    // 쿨다운에 걸려 재시도조차 막히지 않도록 방금 만든 코드를 되돌린다.
+    await emailVerifications().deleteMany({ studentNo, consumedAt: null });
+    throw new HttpError(
+      502,
+      'mail_failed',
+      '인증 메일을 보내지 못했습니다. 잠시 후 다시 시도하거나 어드민(6155)에게 문의해 주세요.',
+    );
+  }
 
   return { expiresInMinutes: config.verification.expiresInMinutes };
 }
