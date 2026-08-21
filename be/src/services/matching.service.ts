@@ -3,51 +3,17 @@ import { ObjectId } from 'mongodb';
 import { config } from '../config';
 import { matches, students, users } from '../db/collections';
 import { HttpError } from '../lib/http-error';
+import { endJob, isRunning, setStage, startJob, type Stage } from '../lib/jobs';
 import { spend } from './points.service';
 import type { DateCourse, MatchDoc, MatchResult } from '../types/models';
 
 const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
-/** 진행 단계와 예상 소요 시간(ms). 실측 기반 추정치다. */
-export const STAGES = {
-  matching: { label: '프로필 24명을 읽고 궁합을 분석하는 중', estimatedMs: 100_000 },
-  course_search: { label: '홍대에서 실제 영업 중인 가게를 검색하는 중', estimatedMs: 60_000 },
-  course_shaping: { label: '동선에 맞춰 코스를 짜는 중', estimatedMs: 30_000 },
-} as const;
-
-export type Stage = keyof typeof STAGES;
-
-interface Job {
-  stage: Stage;
-  startedAt: number;
-}
-
-/** 진행 중인 작업. 중복 요청을 막고(PRD F-3.5) 진행 상태를 알려준다. */
-const jobs = new Map<string, Job>();
-
-const startJob = (userId: string, stage: Stage) => jobs.set(userId, { stage, startedAt: Date.now() });
-const setStage = (userId: string, stage: Stage) => {
-  const job = jobs.get(userId);
-  if (job) jobs.set(userId, { stage, startedAt: Date.now() });
-};
-
-/** 화면에 보여줄 진행 상태. 없으면 null. */
-export function jobProgress(userId: string) {
-  const job = jobs.get(userId);
-  if (!job) return null;
-
-  const { label, estimatedMs } = STAGES[job.stage];
-  const elapsedMs = Date.now() - job.startedAt;
-  // 예상 시간을 넘겨도 95%에서 멈춘다 — 다 됐다고 오해하게 두지 않는다.
-  const percent = Math.min(95, Math.round((elapsedMs / estimatedMs) * 100));
-  return { stage: job.stage, label, percent, elapsedMs };
-}
-
 /**
  * "곽소윤 님"처럼 띄어 쓴 호칭을 "곽소윤님"으로 붙인다.
  * 프롬프트로 지시해도 가끔 새어나가서 저장 직전에 한 번 더 정리한다.
  */
-function fixHonorific<T>(value: T, names: string[]): T {
+export function fixHonorific<T>(value: T, names: string[]): T {
   const targets = names.filter(Boolean);
   if (targets.length === 0) return value;
 
@@ -63,7 +29,7 @@ function fixHonorific<T>(value: T, names: string[]): T {
  * AI에 넘길 프로필을 추린다.
  * phone은 어떤 경로로도 나가면 안 된다 (PRD S-1). cohort/teams 상세/메타도 제외한다.
  */
-function trim(doc: any) {
+export function trim(doc: any) {
   const p = doc.profile ?? {};
   return {
     id: doc._id,
@@ -282,8 +248,8 @@ export async function buildDateCourse(me: any, partner: any, onStage?: (s: Stage
 }
 
 export async function runMatching(userId: string): Promise<MatchDoc> {
-  if (jobs.has(userId)) {
-    throw new HttpError(409, 'already_running', '매칭이 진행 중입니다. 잠시만 기다려 주세요.');
+  if (isRunning(userId)) {
+    throw new HttpError(409, 'already_running', '다른 분석이 진행 중입니다. 잠시만 기다려 주세요.');
   }
 
   const me = await students().findOne({ _id: userId });
@@ -396,7 +362,7 @@ export async function runMatching(userId: string): Promise<MatchDoc> {
 
     return doc;
   } finally {
-    jobs.delete(userId);
+    endJob(userId);
   }
 }
 
@@ -409,8 +375,8 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
   if (!doc) throw new HttpError(404, 'no_match', '먼저 운명의 상대를 찾아주세요.');
   if (doc.dateCourse) return doc;
 
-  if (jobs.has(userId)) {
-    throw new HttpError(409, 'already_running', '데이트 코스를 만드는 중입니다.');
+  if (isRunning(userId)) {
+    throw new HttpError(409, 'already_running', '다른 분석이 진행 중입니다. 잠시만 기다려 주세요.');
   }
 
   const me = await students().findOne({ _id: userId });
@@ -436,7 +402,7 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
     );
     return { ...doc, dateCourse: course };
   } finally {
-    jobs.delete(userId);
+    endJob(userId);
   }
 }
 

@@ -25,7 +25,12 @@ export interface EmailVerificationDoc {
   createdAt: Date;
 }
 
-export type PointReason = 'signup_bonus' | 'match_initial' | 'match_refresh' | 'admin_grant';
+export type PointReason =
+  | 'signup_bonus'
+  | 'match_initial'
+  | 'match_refresh'
+  | 'admin_grant'
+  | 'pandora';
 
 export interface PointTransactionDoc {
   _id: ObjectId;
@@ -109,4 +114,26 @@ export interface PointRequestDoc {
   resolvedAt: Date | null;
   resolvedBy: string | null;
   grantedPoints: number | null;
+}
+
+/** 판도라의 상자 — 가장 안 맞는 상대. score는 재앙 지수(높을수록 최악). */
+export interface PandoraResult {
+  candidateId: string;
+  name: string;
+  score: number;
+  headline: string;
+  reasons: string[];
+  disasterScene: string;
+  survivalTips: string[];
+}
+
+export interface PandoraDoc {
+  _id: ObjectId;
+  userId: string;
+  generatedAt: Date;
+  isReopen: boolean;
+  model: string;
+  /** 재앙 지수 내림차순. 클라이언트에는 1위(최악)만 내려보낸다. */
+  results: PandoraResult[];
+  usage: { inputTokens: number; outputTokens: number };
 }

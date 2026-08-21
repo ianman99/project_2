@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
 const NAV = [
+  { to: '/pandora', label: '판도라의 상자' },
   { to: '/my', label: '마이페이지' },
 ];
 

@@ -5,6 +5,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { My } from './pages/My';
+import { Pandora } from './pages/Pandora';
 import { EditProfile } from './pages/EditProfile';
 import { Admin } from './pages/Admin';
 
@@ -26,6 +27,14 @@ export default function App() {
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />
             <Route path="signup" element={<Signup />} />
+            <Route
+              path="pandora"
+              element={
+                <Guard>
+                  <Pandora />
+                </Guard>
+              }
+            />
             <Route
               path="my"
               element={

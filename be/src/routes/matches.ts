@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { config } from '../config';
 import { currentStudentNo, requireAuth } from '../middleware/require-auth';
+import { PANDORA_STAGES, jobProgress } from '../lib/jobs';
 import {
   generateDateCourse,
-  jobProgress,
   latestMatch,
   matchHistory,
   runMatching,
@@ -46,9 +46,15 @@ matchesRouter.get('/', async (req, res) => {
   res.json({
     cost: config.match.cost,
     result: doc ? toPublic(doc) : null,
-    progress: jobProgress(userId),
+    progress: matchProgress(userId),
   });
 });
+
+/** 판도라 진행 상태는 판도라 화면 몫이라 홈에서는 감춘다. */
+function matchProgress(userId: string) {
+  const p = jobProgress(userId);
+  return p && !PANDORA_STAGES.includes(p.stage) ? p : null;
+}
 
 matchesRouter.get('/history', async (req, res) => {
   const docs = await matchHistory(currentStudentNo(req));

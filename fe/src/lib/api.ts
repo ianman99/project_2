@@ -47,7 +47,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T,>(path: string, data?: unknown) =>
   request<T>(path, { method: 'POST', body: JSON.stringify(data ?? {}) });
 
-export type PointReason = 'signup_bonus' | 'match_initial' | 'match_refresh' | 'admin_grant';
+export type PointReason =
+  | 'signup_bonus'
+  | 'match_initial'
+  | 'match_refresh'
+  | 'admin_grant'
+  | 'pandora';
 
 export interface PointTransaction {
   id: string;
@@ -63,6 +68,7 @@ export const REASON_LABEL: Record<PointReason, string> = {
   match_initial: '운명의 상대 찾기',
   match_refresh: '운명의 상대 새로고침',
   admin_grant: '어드민 지급',
+  pandora: '판도라의 상자',
 };
 
 export interface DateCourse {
@@ -72,7 +78,7 @@ export interface DateCourse {
 }
 
 export interface MatchProgress {
-  stage: 'matching' | 'course_search' | 'course_shaping';
+  stage: 'matching' | 'course_search' | 'course_shaping' | 'pandora';
   label: string;
   percent: number;
   elapsedMs: number;
@@ -90,6 +96,21 @@ export interface MatchResult {
     reasons: string[];
     concerns: string[];
     conversationStarters: string[];
+  };
+}
+
+/** 판도라의 상자 — 가장 안 맞는 상대. score는 재앙 지수(높을수록 최악). */
+export interface PandoraResult {
+  id: string;
+  generatedAt: string;
+  isReopen: boolean;
+  worst: {
+    name: string;
+    score: number;
+    headline: string;
+    reasons: string[];
+    disasterScene: string;
+    survivalTips: string[];
   };
 }
 
@@ -173,6 +194,11 @@ export const api = {
   approveEdit: (id: string) => post<{ request: EditRequest }>(`/admin/edit-requests/${id}/approve`),
   rejectEdit: (id: string) => post<{ request: EditRequest }>(`/admin/edit-requests/${id}/reject`),
   runMatch: () => post<{ result: MatchResult }>('/matches'),
+  pandora: () =>
+    request<{ cost: number; result: PandoraResult | null; progress: MatchProgress | null }>(
+      '/pandora',
+    ),
+  openPandora: () => post<{ result: PandoraResult }>('/pandora'),
   generateDateCourse: () => post<{ result: MatchResult }>('/matches/date-course'),
   requestCode: (email: string) => post<{ expiresInMinutes: number }>('/auth/signup/request', { email }),
   verifySignup: (email: string, code: string, password: string) =>
