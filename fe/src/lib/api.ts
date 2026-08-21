@@ -114,6 +114,13 @@ export interface PandoraResult {
   };
 }
 
+/** 서로를 1위로 꼽은 커플. 메인 현황보드에 공개된다. */
+export interface Couple {
+  a: { studentNo: string; name: string; score: number };
+  b: { studentNo: string; name: string; score: number };
+  matchedAt: string;
+}
+
 export interface EditableField {
   path: string;
   label: string;
@@ -215,6 +222,7 @@ export const api = {
   latestMatch: () =>
     request<{ cost: number; result: MatchResult | null; progress: MatchProgress | null }>('/matches'),
   matchHistory: () => request<{ items: MatchResult[] }>('/matches/history'),
+  matchBoard: () => request<{ couples: Couple[] }>('/matches/board'),
   fullProfile: () => request<{ profile: Record<string, unknown> }>('/profile'),
   editable: () => request<{ fields: EditableField[]; pending: EditRequest | null }>('/profile/editable'),
   myEditRequests: () => request<{ items: EditRequest[] }>('/profile/edit-requests'),

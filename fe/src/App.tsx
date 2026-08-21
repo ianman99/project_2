@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
+import { Match } from './pages/Match';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { My } from './pages/My';
@@ -28,6 +29,14 @@ export default function App() {
             <Route index element={<Home />} />
             <Route path="login" element={<Login />} />
             <Route path="signup" element={<Signup />} />
+            <Route
+              path="match"
+              element={
+                <Guard>
+                  <Match />
+                </Guard>
+              }
+            />
             <Route
               path="community"
               element={

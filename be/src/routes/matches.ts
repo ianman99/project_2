@@ -5,6 +5,7 @@ import { PANDORA_STAGES, jobProgress } from '../lib/jobs';
 import {
   generateDateCourse,
   latestMatch,
+  matchBoard,
   matchHistory,
   runMatching,
 } from '../services/matching.service';
@@ -55,6 +56,11 @@ function matchProgress(userId: string) {
   const p = jobProgress(userId);
   return p && !PANDORA_STAGES.includes(p.stage) ? p : null;
 }
+
+/** 메인 현황보드 — 서로를 1위로 꼽은 커플만 공개된다. */
+matchesRouter.get('/board', async (_req, res) => {
+  res.json({ couples: await matchBoard() });
+});
 
 matchesRouter.get('/history', async (req, res) => {
   const docs = await matchHistory(currentStudentNo(req));

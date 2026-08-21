@@ -406,6 +406,53 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
   }
 }
 
+/**
+ * 성사된 커플 — 서로를 1위로 꼽은 쌍만 센다.
+ * 한쪽만 꼽은 건 성사가 아니고, 그 사실도 밖으로 내보내지 않는다.
+ */
+export async function matchBoard() {
+  const tops = await matches()
+    .aggregate<{ _id: string; partnerId: string; score: number; generatedAt: Date }>([
+      // 사람마다 가장 최근 매칭의 1위만 남긴다.
+      { $sort: { generatedAt: -1 } },
+      {
+        $group: {
+          _id: '$userId',
+          partnerId: { $first: { $arrayElemAt: ['$results.candidateId', 0] } },
+          score: { $first: { $arrayElemAt: ['$results.score', 0] } },
+          generatedAt: { $first: '$generatedAt' },
+        },
+      },
+    ])
+    .toArray();
+
+  const byUser = new Map(tops.map((t) => [t._id, t]));
+  const roster = await students().find({}, { projection: { name: 1 } }).toArray();
+  const nameById = new Map(roster.map((s) => [s._id, s.name]));
+
+  const couples = [];
+  for (const me of tops) {
+    const partner = byUser.get(me.partnerId);
+    if (!partner || partner.partnerId !== me._id) continue;
+    // 같은 쌍이 두 번 나오므로 학번이 작은 쪽에서만 만든다.
+    if (me._id > me.partnerId) continue;
+
+    couples.push({
+      a: { studentNo: me._id, name: nameById.get(me._id) ?? me._id, score: me.score },
+      b: {
+        studentNo: me.partnerId,
+        name: nameById.get(me.partnerId) ?? me.partnerId,
+        score: partner.score,
+      },
+      // 늦게 매칭한 쪽 시각을 성사 시점으로 본다.
+      matchedAt: me.generatedAt > partner.generatedAt ? me.generatedAt : partner.generatedAt,
+    });
+  }
+
+  couples.sort((x, y) => y.matchedAt.getTime() - x.matchedAt.getTime());
+  return couples;
+}
+
 export function latestMatch(userId: string): Promise<MatchDoc | null> {
   return matches().findOne({ userId }, { sort: { generatedAt: -1 } });
 }
