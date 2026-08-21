@@ -4,6 +4,7 @@ import type {
   PointTransactionDoc,
   MatchDoc,
   PandoraDoc,
+  PostDoc,
   PointRequestDoc,
   ProfileEditRequestDoc,
   StudentDoc,
@@ -16,6 +17,7 @@ export const emailVerifications = () => getCollection<EmailVerificationDoc>('ema
 export const pointTransactions = () => getCollection<PointTransactionDoc>('point_transactions');
 export const matches = () => getCollection<MatchDoc>('matches');
 export const pandora = () => getCollection<PandoraDoc>('pandora');
+export const posts = () => getCollection<PostDoc>('posts');
 export const profileEditRequests = () =>
   getCollection<ProfileEditRequestDoc>('profile_edit_requests');
 export const pointRequests = () => getCollection<PointRequestDoc>('point_requests');
@@ -33,6 +35,7 @@ export async function ensureIndexes(): Promise<void> {
   await pointTransactions().createIndex({ userId: 1, createdAt: -1 });
   await matches().createIndex({ userId: 1, generatedAt: -1 });
   await pandora().createIndex({ userId: 1, generatedAt: -1 });
+  await posts().createIndex({ createdAt: -1 });
   await profileEditRequests().createIndex({ status: 1, requestedAt: -1 });
   await profileEditRequests().createIndex({ userId: 1, requestedAt: -1 });
 

@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth';
 
 const NAV = [
   { to: '/pandora', label: '판도라의 상자' },
+  { to: '/community', label: '커뮤니티' },
   { to: '/my', label: '마이페이지' },
 ];
 

@@ -156,6 +156,37 @@ export interface PointRequest {
   grantedPoints: number | null;
 }
 
+/** 글을 쓸 때 한 번만 정한다. 나중에 바꿀 수 없다. '공지'는 어드민 전용이고 맨 위에 고정된다. */
+export const POST_CATEGORIES = ['공지', '일반'] as const;
+export type PostCategory = (typeof POST_CATEGORIES)[number];
+
+export interface Poll {
+  options: { id: string; label: string; count: number }[];
+  total: number;
+  /** 내가 고른 선택지. 안 했으면 null. */
+  myVote: string | null;
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  name: string;
+  body: string;
+  createdAt: string;
+}
+
+/** 커뮤니티 글 */
+export interface Post {
+  id: string;
+  userId: string;
+  name: string;
+  body: string;
+  createdAt: string;
+  comments: Comment[];
+  category: PostCategory;
+  poll: Poll | null;
+}
+
 /** 어드민이 직접 전달할 가입 인증코드 */
 export interface SignupCode {
   studentNo: string;
@@ -209,6 +240,15 @@ export const api = {
       '/pandora',
     ),
   openPandora: () => post<{ result: PandoraResult }>('/pandora'),
+  posts: () => request<{ categories: PostCategory[]; items: Post[] }>('/community'),
+  writePost: (body: string, pollOptions?: string[], category?: PostCategory) =>
+    post<{ post: Post }>('/community', { body, pollOptions, category }),
+  vote: (id: string, optionId: string) => post<{ poll: Poll }>(`/community/${id}/vote`, { optionId }),
+  deletePost: (id: string) => request<{ ok: true }>(`/community/${id}`, { method: 'DELETE' }),
+  writeComment: (postId: string, body: string) =>
+    post<{ comment: Comment }>(`/community/${postId}/comments`, { body }),
+  deleteComment: (postId: string, commentId: string) =>
+    request<{ ok: true }>(`/community/${postId}/comments/${commentId}`, { method: 'DELETE' }),
   generateDateCourse: () => post<{ result: MatchResult }>('/matches/date-course'),
   requestCode: (email: string) =>
     post<{ expiresInMinutes: number; delivery: 'email' | 'admin' }>('/auth/signup/request', { email }),

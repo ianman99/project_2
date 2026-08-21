@@ -138,3 +138,44 @@ export interface PandoraDoc {
   results: PandoraResult[];
   usage: { inputTokens: number; outputTokens: number };
 }
+
+/** 글을 쓸 때 한 번만 정한다. 나중에 바꿀 수 없다. '공지'는 목록 맨 위에 고정된다. */
+export const POST_CATEGORIES = ['공지', '일반'] as const;
+export type PostCategory = (typeof POST_CATEGORIES)[number];
+
+export interface PollOptionDoc {
+  id: string;
+  label: string;
+}
+
+export interface PollDoc {
+  options: PollOptionDoc[];
+  /** 학번 → 선택한 옵션 id. 한 사람 한 표이고 다시 누르면 취소된다. */
+  votes: Record<string, string>;
+}
+
+export interface CommentDoc {
+  _id: ObjectId;
+  userId: string;
+  name: string;
+  body: string;
+  createdAt: Date;
+}
+
+/** 커뮤니티 글. 상세 페이지 없이 목록에서 바로 읽고 쓴다. */
+export interface PostDoc {
+  _id: ObjectId;
+  userId: string;
+  /** 작성 시점 이름을 그대로 박아둔다 — 읽을 때마다 students를 조회할 이유가 없다. */
+  name: string;
+  body: string;
+  createdAt: Date;
+  /**
+   * 댓글은 글 안에 넣는다. 목록 한 번에 같이 내려가고, 글을 지우면 같이 사라진다.
+   * 24명짜리 반이라 배열이 커질 일이 없다.
+   */
+  comments: CommentDoc[];
+  /** 작성 시 확정된다. '공지'는 어드민만 지정할 수 있다. */
+  category: PostCategory;
+  poll: PollDoc | null;
+}

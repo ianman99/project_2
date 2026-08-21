@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth';
 import { pointsRouter } from './routes/points';
 import { matchesRouter } from './routes/matches';
 import { pandoraRouter } from './routes/pandora';
+import { communityRouter } from './routes/community';
 import { profileRouter } from './routes/profile';
 import { adminRouter } from './routes/admin';
 import { createSessionMiddleware } from './middleware/session';
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/points', pointsRouter);
   app.use('/api/matches', matchesRouter);
   app.use('/api/pandora', pandoraRouter);
+  app.use('/api/community', communityRouter);
   app.use('/api/profile', profileRouter);
   app.use('/api/admin', adminRouter);
 
