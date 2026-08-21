@@ -5,6 +5,7 @@ import type {
   MatchDoc,
   PandoraDoc,
   PostDoc,
+  CoupleSupportDoc,
   PointRequestDoc,
   ProfileEditRequestDoc,
   StudentDoc,
@@ -18,6 +19,7 @@ export const pointTransactions = () => getCollection<PointTransactionDoc>('point
 export const matches = () => getCollection<MatchDoc>('matches');
 export const pandora = () => getCollection<PandoraDoc>('pandora');
 export const posts = () => getCollection<PostDoc>('posts');
+export const coupleSupports = () => getCollection<CoupleSupportDoc>('couple_supports');
 export const profileEditRequests = () =>
   getCollection<ProfileEditRequestDoc>('profile_edit_requests');
 export const pointRequests = () => getCollection<PointRequestDoc>('point_requests');

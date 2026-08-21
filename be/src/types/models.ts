@@ -179,3 +179,9 @@ export interface PostDoc {
   category: PostCategory;
   poll: PollDoc | null;
 }
+
+/** 커플 지지. _id는 "작은학번-큰학번" 형태의 쌍 키다. */
+export interface CoupleSupportDoc {
+  _id: string;
+  supporters: { userId: string; name: string; at: Date }[];
+}

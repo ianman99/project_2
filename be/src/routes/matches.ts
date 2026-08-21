@@ -8,6 +8,7 @@ import {
   matchBoard,
   matchHistory,
   runMatching,
+  toggleSupport,
 } from '../services/matching.service';
 import type { MatchDoc } from '../types/models';
 
@@ -58,8 +59,13 @@ function matchProgress(userId: string) {
 }
 
 /** 메인 현황보드 — 서로를 1위로 꼽은 커플만 공개된다. */
-matchesRouter.get('/board', async (_req, res) => {
-  res.json({ couples: await matchBoard() });
+matchesRouter.get('/board', async (req, res) => {
+  res.json({ couples: await matchBoard(currentStudentNo(req)) });
+});
+
+/** 지지 토글. 한 사람이 여러 커플을 지지할 수 있다. */
+matchesRouter.post('/board/:pairKey/support', async (req, res) => {
+  res.json(await toggleSupport(currentStudentNo(req), req.params.pairKey));
 });
 
 matchesRouter.get('/history', async (req, res) => {

@@ -28,6 +28,10 @@ export function Home() {
     void load().finally(() => setLoading(false));
   }, [user, load]);
 
+  /** 지지 결과만 갈아끼운다 — 보드 전체를 다시 불러올 이유가 없다. */
+  const patch = (pairKey: string, fn: (c: Couple) => Couple) =>
+    setCouples((prev) => prev.map((c) => (c.pairKey === pairKey ? fn(c) : c)));
+
   return (
     <>
       <div className="plate mb-4 bg-lavender p-8 text-center">
@@ -54,19 +58,8 @@ export function Home() {
         </Panel>
       ) : (
         <Panel title={`성사된 커플 (${couples.length})`}>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <Chip onClick={() => void load()}>새로고침</Chip>
-            <Link to="/match">
-              <Chip variant="signal">운명의 상대 찾기</Chip>
-            </Link>
-          </div>
 
           <ErrorText>{error}</ErrorText>
-
-          <p className="mb-3 text-[11px] text-chrome-indigo">
-            두 사람이 <strong>서로를 1위로 꼽았을 때만</strong> 성사로 봅니다. 한쪽만 꼽은 경우는
-            공개되지 않습니다.
-          </p>
 
           {loading ? (
             <p className="legend text-chrome-indigo">불러오는 중…</p>
@@ -80,7 +73,7 @@ export function Home() {
           ) : (
             <ul>
               {couples.map((c) => (
-                <li key={`${c.a.studentNo}-${c.b.studentNo}`} className="inset mb-2 p-3 text-center">
+                <li key={c.pairKey} className="inset mb-2 p-3 text-center">
                   <div className="flex items-center justify-center gap-3">
                     <span className="font-display text-[20px] leading-none text-carbon">
                       {c.a.name}님
@@ -94,6 +87,7 @@ export function Home() {
                     서로 {c.a.score}% · {c.b.score}% ·{' '}
                     {new Date(c.matchedAt).toLocaleDateString('ko-KR')}
                   </p>
+                  <Support couple={c} onChange={patch} setError={setError} />
                 </li>
               ))}
             </ul>
@@ -101,5 +95,50 @@ export function Home() {
         </Panel>
       )}
     </>
+  );
+}
+
+function Support({
+  couple,
+  onChange,
+  setError,
+}: {
+  couple: Couple;
+  onChange: (pairKey: string, fn: (c: Couple) => Couple) => void;
+  setError: (m: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const toggle = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      const { supporters, iSupport } = await api.toggleSupport(couple.pairKey);
+      onChange(couple.pairKey, (c) => ({ ...c, supporters, iSupport }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '지지하지 못했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 flex items-center justify-center gap-2">
+      <Chip variant={couple.iSupport ? 'signal' : 'amber'} onClick={toggle} disabled={busy}>
+        {couple.iSupport ? '지지 취소' : '이 커플 지지합니다'}
+      </Chip>
+
+      {/* 호버하면 지지한 사람 이름이 뜬다 */}
+      <span className="group relative">
+        <span className="legend cursor-default text-chrome-indigo">
+          지지 {couple.supporters.length}명
+        </span>
+        {couple.supporters.length > 0 && (
+          <span className="plate absolute bottom-full left-1/2 z-10 mb-1 hidden w-max max-w-[260px] -translate-x-1/2 bg-canvas-soft p-2 text-left text-[11px] leading-snug text-carbon group-hover:block">
+            {couple.supporters.map((s) => `${s.name}님`).join(', ')}
+          </span>
+        )}
+      </span>
+    </div>
   );
 }

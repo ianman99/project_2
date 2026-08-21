@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ObjectId } from 'mongodb';
 import { config } from '../config';
-import { matches, students, users } from '../db/collections';
+import { coupleSupports, matches, students, users } from '../db/collections';
 import { HttpError } from '../lib/http-error';
 import { endJob, isRunning, setStage, startJob, type Stage } from '../lib/jobs';
 import { spend } from './points.service';
@@ -410,7 +410,10 @@ export async function generateDateCourse(userId: string): Promise<MatchDoc> {
  * 성사된 커플 — 서로를 1위로 꼽은 쌍만 센다.
  * 한쪽만 꼽은 건 성사가 아니고, 그 사실도 밖으로 내보내지 않는다.
  */
-export async function matchBoard() {
+/** 쌍 키는 항상 학번이 작은 쪽이 앞이다. */
+const pairKey = (a: string, b: string) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+export async function matchBoard(viewerId: string) {
   const tops = await matches()
     .aggregate<{ _id: string; partnerId: string; score: number; generatedAt: Date }>([
       // 사람마다 가장 최근 매칭의 1위만 남긴다.
@@ -438,6 +441,7 @@ export async function matchBoard() {
     if (me._id > me.partnerId) continue;
 
     couples.push({
+      pairKey: pairKey(me._id, me.partnerId),
       a: { studentNo: me._id, name: nameById.get(me._id) ?? me._id, score: me.score },
       b: {
         studentNo: me.partnerId,
@@ -450,7 +454,52 @@ export async function matchBoard() {
   }
 
   couples.sort((x, y) => y.matchedAt.getTime() - x.matchedAt.getTime());
-  return couples;
+
+  // 지지 현황을 한 번에 붙인다.
+  const supportDocs = await coupleSupports()
+    .find({ _id: { $in: couples.map((c) => c.pairKey) } })
+    .toArray();
+  const supportByPair = new Map(supportDocs.map((d) => [d._id, d.supporters ?? []]));
+
+  return couples.map((c) => {
+    const supporters = supportByPair.get(c.pairKey) ?? [];
+    return {
+      ...c,
+      supporters: supporters.map((s) => ({ userId: s.userId, name: s.name })),
+      iSupport: supporters.some((s) => s.userId === viewerId),
+    };
+  });
+}
+
+/**
+ * 커플 지지 토글. 이미 지지했으면 취소된다.
+ * 실제로 성사된 쌍인지 확인한 뒤에만 기록한다 — 임의의 쌍을 만들 수 없다.
+ */
+export async function toggleSupport(viewerId: string, key: string) {
+  const board = await matchBoard(viewerId);
+  const couple = board.find((c) => c.pairKey === key);
+  if (!couple) throw new HttpError(404, 'no_couple', '성사된 커플이 아닙니다.');
+
+  const student = await students().findOne({ _id: viewerId }, { projection: { name: 1 } });
+  const name = student?.name ?? viewerId;
+
+  const doc = couple.iSupport
+    ? await coupleSupports().findOneAndUpdate(
+        { _id: key },
+        { $pull: { supporters: { userId: viewerId } } },
+        { returnDocument: 'after' },
+      )
+    : await coupleSupports().findOneAndUpdate(
+        { _id: key },
+        { $push: { supporters: { userId: viewerId, name, at: new Date() } } },
+        { returnDocument: 'after', upsert: true },
+      );
+
+  const supporters = doc?.supporters ?? [];
+  return {
+    supporters: supporters.map((s) => ({ userId: s.userId, name: s.name })),
+    iSupport: supporters.some((s) => s.userId === viewerId),
+  };
 }
 
 export function latestMatch(userId: string): Promise<MatchDoc | null> {
