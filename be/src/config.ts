@@ -15,18 +15,21 @@ function optional(name: string, fallback: string): string {
 const nodeEnv = optional('NODE_ENV', 'development');
 
 /**
- * Brevo를 쓰면 SMTP 설정은 필요 없다.
- * Render 무료 플랜이 SMTP 포트를 막아서 배포 환경에서는 Brevo HTTP API로 보낸다.
+ * 메일 발송은 선택사항이다.
+ * 둘 다 없으면 인증코드를 발송하지 않고 어드민이 직접 발급한다 (PRD F-1.9).
+ * 배포 환경이 이 경우다 — Render 무료 플랜은 SMTP 포트를 막고,
+ * 학교 도메인은 DNS를 건드릴 수 없어 제3자 발송 API도 인증할 수 없다.
  */
 const brevoApiKey = process.env.BREVO_API_KEY ?? null;
-const smtp = brevoApiKey
-  ? null
-  : {
-      host: required('SMTP_HOST'),
-      port: Number(required('SMTP_PORT')),
-      user: required('SMTP_USER'),
-      pass: required('SMTP_PASS'),
-    };
+const smtp =
+  !brevoApiKey && process.env.SMTP_HOST
+    ? {
+        host: process.env.SMTP_HOST,
+        port: Number(optional('SMTP_PORT', '587')),
+        user: optional('SMTP_USER', ''),
+        pass: optional('SMTP_PASS', ''),
+      }
+    : null;
 
 export const config = {
   env: nodeEnv,
@@ -47,9 +50,11 @@ export const config = {
   },
   smtp,
   mail: {
-    fromAddress: required('MAIL_FROM_ADDRESS'),
+    fromAddress: optional('MAIL_FROM_ADDRESS', ''),
     fromName: optional('MAIL_FROM_NAME', '사랑찾아 인생찾아'),
     brevoApiKey,
+    /** 발송 수단이 하나도 없으면 어드민이 코드를 직접 발급한다. */
+    enabled: Boolean(brevoApiKey || smtp),
   },
   auth: {
     sessionSecret: required('SESSION_SECRET'),

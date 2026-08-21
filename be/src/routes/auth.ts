@@ -23,8 +23,7 @@ function requireString(body: unknown, field: string): string {
 /** 1단계 — 인증코드 발송 */
 authRouter.post('/signup/request', async (req, res) => {
   const email = requireString(req.body, 'email');
-  const result = await requestSignupCode(email);
-  res.json({ ok: true, ...result });
+  res.json({ ok: true, ...(await requestSignupCode(email)) });
 });
 
 /** 2단계 — 코드 검증 + 계정 생성. 성공 시 바로 로그인 상태가 된다. */

@@ -17,7 +17,8 @@ export interface EmailVerificationDoc {
   _id: ObjectId;
   studentNo: string;
   email: string;
-  /** 평문 저장 금지 (PRD F-1.8) */
+  /** 어드민이 직접 전달할 수 있게 평문도 보관한다 (PRD F-1.9). 만료 시 자동 삭제된다. */
+  code: string;
   codeHash: string;
   expiresAt: Date;
   attempts: number;

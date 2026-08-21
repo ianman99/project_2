@@ -156,6 +156,15 @@ export interface PointRequest {
   grantedPoints: number | null;
 }
 
+/** 어드민이 직접 전달할 가입 인증코드 */
+export interface SignupCode {
+  studentNo: string;
+  name: string;
+  email: string;
+  code: string | null;
+  expiresAt: string;
+}
+
 export interface Balance {
   userId: string;
   name: string;
@@ -187,6 +196,7 @@ export const api = {
   grantPoints: (userId: string, amount: number, memo: string) =>
     post<{ userId: string; balance: number }>('/admin/grant', { userId, amount, memo }),
   balances: () => request<{ items: Balance[] }>('/admin/balances'),
+  signupCodes: () => request<{ items: SignupCode[] }>('/admin/signup-codes'),
   submitEdit: (changes: Record<string, string>) =>
     post<{ request: EditRequest }>('/profile/edit-request', changes),
   editRequests: (status = 'pending') =>
@@ -200,7 +210,8 @@ export const api = {
     ),
   openPandora: () => post<{ result: PandoraResult }>('/pandora'),
   generateDateCourse: () => post<{ result: MatchResult }>('/matches/date-course'),
-  requestCode: (email: string) => post<{ expiresInMinutes: number }>('/auth/signup/request', { email }),
+  requestCode: (email: string) =>
+    post<{ expiresInMinutes: number; delivery: 'email' | 'admin' }>('/auth/signup/request', { email }),
   verifySignup: (email: string, code: string, password: string) =>
     post<{ user: User }>('/auth/signup/verify', { email, code, password }),
   login: (email: string, password: string) => post<{ user: User }>('/auth/login', { email, password }),

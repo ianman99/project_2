@@ -11,6 +11,7 @@ export function Signup() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+  const [delivery, setDelivery] = useState<'email' | 'admin'>('email');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -29,7 +30,8 @@ export function Signup() {
   const sendCode = (e: FormEvent) => {
     e.preventDefault();
     void run(async () => {
-      await api.requestCode(email);
+      const { delivery } = await api.requestCode(email);
+      setDelivery(delivery);
       setStep(2);
     });
   };
@@ -50,7 +52,7 @@ export function Signup() {
       {step === 1 ? (
         <form onSubmit={sendCode}>
           <p className="mb-3 text-[11px] text-carbon">
-            학번 이메일로만 가입할 수 있습니다. 인증번호를 보내드립니다.
+            학번 이메일로만 가입할 수 있습니다. 명단에 있는 학번인지 확인합니다.
           </p>
           <Field
             label="학교 이메일"
@@ -61,14 +63,24 @@ export function Signup() {
             required
           />
           <Chip type="submit" variant="signal" disabled={busy}>
-            {busy ? '발송 중' : '인증번호 받기'}
+            {busy ? '요청 중' : '인증번호 받기'}
           </Chip>
         </form>
       ) : (
         <form onSubmit={verify}>
-          <p className="mb-3 text-[11px] text-carbon">
-            <strong>{email}</strong> 로 보낸 6자리 인증번호를 입력하세요. (10분 유효)
-          </p>
+          {delivery === 'email' ? (
+            <p className="mb-3 text-[11px] text-carbon">
+              <strong>{email}</strong> 로 보낸 6자리 인증번호를 입력하세요. (10분 유효)
+            </p>
+          ) : (
+            <div className="inset mb-3 border-l-4 border-l-amber p-2">
+              <p className="text-[11px] text-carbon">
+                <strong>{email}</strong> 의 인증번호가 발급되었습니다. 어드민(6155 지인환)에게
+                문의해 번호를 받아 입력하세요. <strong>10분 뒤 만료</strong>되며, 만료되면 다시
+                요청하면 됩니다.
+              </p>
+            </div>
+          )}
           <Field
             label="인증번호"
             inputMode="numeric"

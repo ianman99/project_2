@@ -25,7 +25,11 @@ export interface PublicUser {
 }
 
 /** 1단계 — 이메일 검증 후 인증코드를 발송한다. */
-export async function requestSignupCode(rawEmail: string): Promise<{ expiresInMinutes: number }> {
+export type CodeDelivery = 'email' | 'admin';
+
+export async function requestSignupCode(
+  rawEmail: string,
+): Promise<{ expiresInMinutes: number; delivery: CodeDelivery }> {
   const { email, studentNo } = parseSchoolEmail(rawEmail);
 
   // 명단 대조: students에 없는 학번은 거부 (PRD F-1.2)
@@ -62,6 +66,7 @@ export async function requestSignupCode(rawEmail: string): Promise<{ expiresInMi
     _id: new ObjectId(),
     studentNo,
     email,
+    code,
     codeHash: hashVerificationCode(code),
     expiresAt: new Date(now.getTime() + config.verification.expiresInMinutes * 60_000),
     attempts: 0,
@@ -69,23 +74,48 @@ export async function requestSignupCode(rawEmail: string): Promise<{ expiresInMi
     createdAt: now,
   });
 
-  const mail = buildVerificationMail(code, config.verification.expiresInMinutes);
-  try {
-    await sendMail({ to: email, ...mail });
-  } catch (err) {
-    // 재시도해도 소용없는 경우가 대부분이라(호스팅이 SMTP 포트를 막는 등)
-    // 원인을 로그로 남기고 사용자에게는 다음 행동을 알려준다.
-    console.error('[mail] 인증코드 발송 실패:', err);
-    // 쿨다운에 걸려 재시도조차 막히지 않도록 방금 만든 코드를 되돌린다.
-    await emailVerifications().deleteMany({ studentNo, consumedAt: null });
-    throw new HttpError(
-      502,
-      'mail_failed',
-      '인증 메일을 보내지 못했습니다. 잠시 후 다시 시도하거나 어드민(6155)에게 문의해 주세요.',
-    );
-  }
+  return { expiresInMinutes: config.verification.expiresInMinutes, delivery: await deliver(email, code) };
+}
 
-  return { expiresInMinutes: config.verification.expiresInMinutes };
+/**
+ * 메일이 설정돼 있으면 보내고, 없거나 실패하면 어드민 발급으로 넘긴다 (PRD F-1.9).
+ * 발송이 안 됐다고 가입 자체를 막지는 않는다 — 코드는 이미 만들어져 있고
+ * 어드민이 화면에서 읽어 전달할 수 있다.
+ */
+let mailBroken = false;
+
+async function deliver(email: string, code: string): Promise<CodeDelivery> {
+  if (!config.mail.enabled || mailBroken) return 'admin';
+  try {
+    await sendMail({ to: email, ...buildVerificationMail(code, config.verification.expiresInMinutes) });
+    return 'email';
+  } catch (err) {
+    // 한 번 막히면 대개 계속 막힌다(포트 차단 등). 매 가입마다 10초씩 끌지 않도록 한 번만 시도한다.
+    mailBroken = true;
+    console.error('[mail] 인증코드 발송 실패 — 이후 어드민 발급으로 전환:', err);
+    return 'admin';
+  }
+}
+
+/** 어드민이 전달할, 아직 쓰이지 않은 인증코드. 만료된 것은 제외한다. */
+export async function pendingSignupCodes() {
+  const docs = await emailVerifications()
+    .find({ consumedAt: null, expiresAt: { $gt: new Date() } })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  const roster = await students()
+    .find({ _id: { $in: docs.map((d) => d.studentNo) } }, { projection: { name: 1 } })
+    .toArray();
+  const nameById = new Map(roster.map((s) => [s._id, s.name]));
+
+  return docs.map((d) => ({
+    studentNo: d.studentNo,
+    name: nameById.get(d.studentNo) ?? '',
+    email: d.email,
+    code: d.code ?? null,
+    expiresAt: d.expiresAt,
+  }));
 }
 
 /** 2단계 — 코드를 검증하고 계정을 만든다. */

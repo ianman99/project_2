@@ -42,10 +42,7 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 | `SESSION_SECRET` | 새로 생성 | `openssl rand -hex 32` |
 | `MONGODB_URI` | Atlas 커넥션 스트링 | 아래 주의사항 참조 |
 | `MONGODB_DB` | `dxschool` | |
-| `BREVO_API_KEY` | Brevo API 키 | **Render에서는 필수** — 아래 참조 |
-| `MAIL_FROM_ADDRESS` | Brevo에 인증한 발신자 주소 | 예: `ianman99@naver.com` |
-| `MAIL_FROM_NAME` | `사랑찾아 인생찾아` | |
-| `SMTP_*` | 설정하지 않음 | `BREVO_API_KEY`가 있으면 무시된다 |
+| `SMTP_*`, `BREVO_API_KEY`, `MAIL_*` | **설정하지 않음** | 인증코드는 어드민이 직접 발급한다. 아래 참조 |
 | `OPENAI_API_KEY` | OpenAI 키 | |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | |
 | `ADMIN_STUDENT_NO` | `6155` | |
@@ -67,42 +64,44 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 
 ### 확인할 것
 
-- [ ] 배포 서버에서 실제로 인증 메일이 도착하는지 (회원가입 1단계를 직접 눌러 확인)
-- [ ] Brevo 무료 한도 — 하루 300통. 24명 규모면 문제없음
+- [ ] 회원가입 1단계를 눌렀을 때 `/admin`에 인증코드가 뜨는지 확인
 - [ ] 첫 요청 시 인덱스가 자동 생성됨 (`ensureIndexes`) — 별도 마이그레이션 불필요
 
-## 메일 발송 — Render에서는 SMTP를 쓸 수 없다
+## 인증코드는 어드민이 직접 발급한다
 
-Render 무료 플랜은 **아웃바운드 SMTP 포트(25·465·587)를 차단**한다(2025-09-26 시행).
-네이버 SMTP로 보내면 `ETIMEDOUT / command: 'CONN'`으로 실패한다. 코드나 계정 문제가 아니다.
-포트 25는 유료 플랜에서도 영구 차단이다.
+배포 환경에서는 인증 메일을 보낼 수 없다.
 
-그래서 `BREVO_API_KEY`가 설정돼 있으면 SMTP 대신 **Brevo HTTP API(443)** 로 보낸다.
-설정이 없으면 기존 네이버 SMTP를 그대로 쓰므로 로컬 개발은 바뀌지 않는다.
+- Render 무료 플랜은 **아웃바운드 SMTP 포트(25·465·587)를 차단**한다(2025-09-26 시행).
+  네이버 SMTP로 보내면 `ETIMEDOUT / command: 'CONN'`으로 실패한다. 포트 25는 유료 플랜에서도 영구 차단이다.
+- `dxschool.co.kr`은 학교(Microsoft 365) 도메인이라 DNS를 건드릴 수 없다.
+  Gmail·Yahoo(2024-02)에 이어 **Microsoft도 2025-05-05부터 발신 도메인 인증을 요구**하므로,
+  도메인 인증이 필요한 제3자 API(Brevo·Resend·SendGrid 등)도 쓸 수 없다.
+  공개 메일 도메인(naver.com 등)은 이들 서비스에서 인증 자체가 거부된다.
 
-`dxschool.co.kr`은 학교(Microsoft 365) 도메인이라 DNS를 건드릴 수 없다.
-그래서 도메인 인증이 필요한 Resend 대신, **발신자 이메일 1개만 인증하면 되는 Brevo**를 쓴다.
+그래서 메일 설정이 하나도 없으면 발송을 시도하지 않고,
+**어드민 화면 최상단의 "가입 인증코드" 패널**에 대기 중인 코드를 띄운다.
+어드민이 학생에게 직접 전달하면 된다 (PRD F-1.9).
 
-설정 순서:
+### Render 환경변수
 
-1. [brevo.com](https://www.brevo.com) 가입 (무료: 하루 300통)
-2. **Senders, Domains & Dedicated IPs → Senders → Add a Sender**
-   - 발신자 주소에 `ianman99@naver.com` 입력 → 그 주소로 온 확인 메일의 링크 클릭
-   - 도메인 인증(Domains 탭)은 하지 않아도 된다
-3. **SMTP & API → API Keys → Generate a new API key**
-4. Render 환경변수에 추가
-   - `BREVO_API_KEY=xkeysib-...`
-   - `MAIL_FROM_ADDRESS=ianman99@naver.com` ← **2번에서 인증한 주소와 정확히 같아야 한다**
-5. 재배포 후 회원가입 1단계를 눌러 메일 도착 확인
+`SMTP_*`와 `BREVO_API_KEY`를 **모두 비워 둔다.** 하나라도 있으면 발송을 시도하다가
+타임아웃까지 10초를 끈다(첫 실패 후에는 자동으로 어드민 발급으로 넘어간다).
 
-### 도달률 참고
+`MAIL_FROM_ADDRESS`도 필요 없다.
 
-`naver.com`의 DMARC는 `p=none`이라 제3자 발송이 정책으로 차단되지는 않는다.
-다만 DKIM이 `naver.com`과 정렬되지 않으므로 수신 측(Microsoft 365)에서
-정크메일함으로 갈 가능성이 있다. 가입자에게 정크메일함도 확인하도록 안내한다.
+### 운영 방법
 
-발송 실패 시 Render 로그의 `[mail] 인증코드 발송 실패:` 줄에
-Brevo 응답 본문이 그대로 찍힌다 (발신자 미인증, 키 오류, 한도 초과 등).
+1. 학생이 회원가입 1단계에서 학번 이메일을 넣는다
+2. 화면에 "어드민에게 문의하세요" 안내가 뜬다
+3. 어드민(6155)이 `/admin`에서 코드를 확인해 전달한다 — 목록은 10초마다 자동 갱신된다
+4. 학생이 코드와 비밀번호를 넣어 가입을 마친다
+
+코드는 **10분 뒤 만료**되고 TTL 인덱스로 자동 삭제된다. 만료되면 학생이 다시 요청하면 된다.
+
+### 로컬 개발
+
+`be/.env`에 `SMTP_*`가 있으면 기존대로 네이버 SMTP로 메일이 나간다.
+배포 환경과 같은 동작을 보려면 `SMTP_HOST`를 주석 처리하면 된다.
 
 ## 플랫폼별 메모
 

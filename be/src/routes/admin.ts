@@ -7,6 +7,7 @@ import {
   listRequests as listPointRequests,
   rejectRequest as rejectPointRequest,
 } from '../services/point-request.service';
+import { pendingSignupCodes } from '../services/auth.service';
 import { grant } from '../services/points.service';
 import { HttpError } from '../lib/http-error';
 
@@ -51,6 +52,11 @@ adminRouter.post('/grant', async (req, res) => {
   }
   const balance = await grant(userId, Number(amount), currentStudentNo(req), String(memo ?? '어드민 직접 지급'));
   res.json({ userId, balance });
+});
+
+/** 어드민이 직접 전달할 가입 인증코드 (PRD F-1.9) */
+adminRouter.get('/signup-codes', async (_req, res) => {
+  res.json({ items: await pendingSignupCodes() });
 });
 
 /** 전체 사용자 잔액 */
