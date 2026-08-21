@@ -42,7 +42,8 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 | `SESSION_SECRET` | 새로 생성 | `openssl rand -hex 32` |
 | `MONGODB_URI` | Atlas 커넥션 스트링 | 아래 주의사항 참조 |
 | `MONGODB_DB` | `dxschool` | |
-| `SMTP_*`, `BREVO_API_KEY`, `MAIL_*` | **설정하지 않음** | 인증코드는 어드민이 직접 발급한다. 아래 참조 |
+| `SUPABASE_URL` | `https://<project>.supabase.co` | 인증코드 발송용. 아래 참조 |
+| `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` | **secret 키는 넣지 않는다** |
 | `OPENAI_API_KEY` | OpenAI 키 | |
 | `OPENAI_MODEL` | `gpt-5.6-terra` | |
 | `ADMIN_STUDENT_NO` | `6155` | |
@@ -64,44 +65,69 @@ NODE_ENV=production STATIC_DIR=../fe/dist node dist/index.js
 
 ### 확인할 것
 
-- [ ] 회원가입 1단계를 눌렀을 때 `/admin`에 인증코드가 뜨는지 확인
+- [ ] 회원가입 1단계를 눌렀을 때 학번 메일함으로 6자리 코드가 오는지 확인
+- [ ] Supabase를 비운 상태에서 `/admin`에 코드가 뜨는지 (폴백 확인)
 - [ ] 첫 요청 시 인덱스가 자동 생성됨 (`ensureIndexes`) — 별도 마이그레이션 불필요
 
-## 인증코드는 어드민이 직접 발급한다
+## 인증 메일은 Supabase를 거쳐 보낸다
 
-배포 환경에서는 인증 메일을 보낼 수 없다.
+Render에서는 직접 메일을 보낼 수 없다.
 
 - Render 무료 플랜은 **아웃바운드 SMTP 포트(25·465·587)를 차단**한다(2025-09-26 시행).
-  네이버 SMTP로 보내면 `ETIMEDOUT / command: 'CONN'`으로 실패한다. 포트 25는 유료 플랜에서도 영구 차단이다.
 - `dxschool.co.kr`은 학교(Microsoft 365) 도메인이라 DNS를 건드릴 수 없다.
   Gmail·Yahoo(2024-02)에 이어 **Microsoft도 2025-05-05부터 발신 도메인 인증을 요구**하므로,
   도메인 인증이 필요한 제3자 API(Brevo·Resend·SendGrid 등)도 쓸 수 없다.
-  공개 메일 도메인(naver.com 등)은 이들 서비스에서 인증 자체가 거부된다.
+  공개 메일 도메인(naver.com 등)은 그 서비스들에서 인증 자체가 거부된다.
 
-그래서 메일 설정이 하나도 없으면 발송을 시도하지 않고,
-**어드민 화면 최상단의 "가입 인증코드" 패널**에 대기 중인 코드를 띄운다.
-어드민이 학생에게 직접 전달하면 된다 (PRD F-1.9).
+그래서 발송을 **Supabase Auth에 위임**한다. 우리 서버는 HTTPS(443)로 Supabase를 부르고,
+실제 SMTP 연결은 Supabase 서버에서 네이버로 나간다. 발송 주체가 네이버라 SPF·DKIM이 정상이고,
+도메인을 소유할 필요가 없다.
 
-### Render 환경변수
+```
+Render ──HTTPS 443──> Supabase ──SMTP 587──> 네이버 ──> Microsoft 365
+```
 
-`SMTP_*`와 `BREVO_API_KEY`를 **모두 비워 둔다.** 하나라도 있으면 발송을 시도하다가
-타임아웃까지 10초를 끈다(첫 실패 후에는 자동으로 어드민 발급으로 넘어간다).
+계정·세션은 그대로 우리(Mongo + express-session)가 관리한다.
+Supabase는 "이 사람이 이 메일함을 갖고 있다"만 확인해 주는 역할이고,
+`auth.users`에 이메일별 그림자 계정이 하나씩 생긴다.
 
-`MAIL_FROM_ADDRESS`도 필요 없다.
+### Supabase 설정
 
-### 운영 방법
+1. **Authentication → Emails → SMTP Settings**
+   - 네이버 SMTP (`smtp.naver.com:587`, 아이디 + 앱 비밀번호)
+   - **Sender name**을 `사랑찾아 인생을찾아`로
+   - 커스텀 SMTP를 붙여야 시간당 한도가 2통 → 30명으로 풀린다
+2. **Authentication → Emails → Templates** — 아래 두 개를 **모두** `{{ .Token }}` 기반으로 바꾼다
+   - **Magic Link** — 기존 사용자에게 나간다
+   - **Confirm signup** — 신규 사용자에게 나간다.
+     우리 가입자는 전원 신규라 **이쪽이 실제로는 더 중요하다.**
+     한쪽만 바꾸면 매직링크가 나가서 6자리 입력창과 맞지 않는다.
+3. **Email OTP expiration** → `600` (10분, PRD F-1.4)
+   **Email OTP Length** → `6`
+   기본이 8인 프로젝트가 있다. 우리 폴백(어드민 발급)은 6자리라 맞춰두는 게 낫다.
+   입력창은 8자리까지 받으므로 안 바꿔도 동작은 한다.
+4. **Site URL** → 배포 URL. OTP 방식에선 쓰이지 않지만 `localhost`로 두면
+   나중에 링크가 새어 나갈 때 본인 PC에서만 동작하게 된다.
 
-1. 학생이 회원가입 1단계에서 학번 이메일을 넣는다
-2. 화면에 "어드민에게 문의하세요" 안내가 뜬다
-3. 어드민(6155)이 `/admin`에서 코드를 확인해 전달한다 — 목록은 10초마다 자동 갱신된다
-4. 학생이 코드와 비밀번호를 넣어 가입을 마친다
+템플릿 예시:
 
-코드는 **10분 뒤 만료**되고 TTL 인덱스로 자동 삭제된다. 만료되면 학생이 다시 요청하면 된다.
+```html
+<div style="font-family:Arial,'Malgun Gothic',sans-serif;color:#21242e">
+  <h2 style="color:#e60012;margin:0 0 4px">사랑찾아 인생을찾아</h2>
+  <p style="font-size:12px;color:#3d4f97;margin:0 0 20px">LG전자 DX SCHOOL 6기 1반</p>
+  <p>아래 6자리 인증번호를 입력해 주세요.</p>
+  <p style="font-size:34px;font-weight:bold;letter-spacing:8px;color:#e60012">{{ .Token }}</p>
+  <p style="font-size:12px;color:#60619c">10분 뒤 만료됩니다. 본인이 요청하지 않았다면 무시하세요.</p>
+</div>
+```
 
-### 로컬 개발
+### 어드민 수동 발급 (폴백)
 
-`be/.env`에 `SMTP_*`가 있으면 기존대로 네이버 SMTP로 메일이 나간다.
-배포 환경과 같은 동작을 보려면 `SMTP_HOST`를 주석 처리하면 된다.
+`SUPABASE_*`가 비어 있거나 Supabase 호출이 실패하면, 우리가 코드를 만들어
+**어드민 화면 최상단 "가입 인증코드" 패널**에 띄운다. 어드민이 직접 전달하면 된다.
+무료 프로젝트가 7일 무활동으로 정지되는 경우가 이 경로로 덮인다.
+
+로컬 개발에서 `SUPABASE_*`를 비워 두면 메일을 보내지 않고 이 경로로만 동작한다.
 
 ## 플랫폼별 메모
 

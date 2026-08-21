@@ -10,8 +10,7 @@ import {
   verificationCodeMatches,
   verifyPassword,
 } from '../lib/credentials';
-import { sendMail } from '../lib/mailer';
-import { buildVerificationMail } from '../lib/mail-templates';
+import { sendOtp, verifyOtp } from '../lib/supabase-otp';
 import type { UserDoc, UserRole } from '../types/models';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -59,9 +58,35 @@ export async function requestSignupCode(
     }
   }
 
+  return {
+    expiresInMinutes: config.verification.expiresInMinutes,
+    delivery: await deliver(email, studentNo),
+  };
+}
+
+/**
+ * Supabase가 설정돼 있으면 메일로 보내고, 실패하면 어드민 발급으로 넘어간다.
+ * 실제 발송은 Supabase에 연결된 네이버 SMTP가 한다 (DEPLOY.md 참조).
+ */
+async function deliver(email: string, studentNo: string): Promise<CodeDelivery> {
+  if (config.supabase) {
+    try {
+      await sendOtp(email);
+      return 'email';
+    } catch (err) {
+      // 쿨다운 같은 정상적인 거부는 그대로 알린다. 우회할 일이 아니다.
+      if (err instanceof HttpError) throw err;
+      console.error('[otp] Supabase 발송 실패 — 어드민 발급으로 전환:', err);
+    }
+  }
+  await issueLocalCode(email, studentNo);
+  return 'admin';
+}
+
+/** 어드민이 화면에서 읽어 전달할 코드를 만든다 (PRD F-1.9). */
+async function issueLocalCode(email: string, studentNo: string): Promise<void> {
   const code = generateVerificationCode();
   const now = new Date();
-
   await emailVerifications().insertOne({
     _id: new ObjectId(),
     studentNo,
@@ -73,28 +98,35 @@ export async function requestSignupCode(
     consumedAt: null,
     createdAt: now,
   });
-
-  return { expiresInMinutes: config.verification.expiresInMinutes, delivery: await deliver(email, code) };
 }
 
-/**
- * 메일이 설정돼 있으면 보내고, 없거나 실패하면 어드민 발급으로 넘긴다 (PRD F-1.9).
- * 발송이 안 됐다고 가입 자체를 막지는 않는다 — 코드는 이미 만들어져 있고
- * 어드민이 화면에서 읽어 전달할 수 있다.
- */
-let mailBroken = false;
-
-async function deliver(email: string, code: string): Promise<CodeDelivery> {
-  if (!config.mail.enabled || mailBroken) return 'admin';
-  try {
-    await sendMail({ to: email, ...buildVerificationMail(code, config.verification.expiresInMinutes) });
-    return 'email';
-  } catch (err) {
-    // 한 번 막히면 대개 계속 막힌다(포트 차단 등). 매 가입마다 10초씩 끌지 않도록 한 번만 시도한다.
-    mailBroken = true;
-    console.error('[mail] 인증코드 발송 실패 — 이후 어드민 발급으로 전환:', err);
-    return 'admin';
+/** 어드민 발급 코드 검증 — 만료·시도 횟수·일치 여부 (PRD F-1.4, F-1.5) */
+async function checkLocalCode(
+  record: { _id: ObjectId; codeHash: string; expiresAt: Date; attempts: number },
+  code: string,
+): Promise<void> {
+  if (record.expiresAt.getTime() <= Date.now()) {
+    throw new HttpError(400, 'code_expired', '인증번호가 만료되었습니다. 다시 요청해 주세요.');
   }
+  if (record.attempts >= config.verification.maxAttempts) {
+    throw new HttpError(400, 'too_many_attempts', '시도 횟수를 초과했습니다. 다시 요청해 주세요.');
+  }
+  if (verificationCodeMatches(code, record.codeHash)) return;
+
+  // 실패도 기록해야 시도 횟수 제한이 작동한다 (PRD F-1.5)
+  const updated = await emailVerifications().findOneAndUpdate(
+    { _id: record._id },
+    { $inc: { attempts: 1 } },
+    { returnDocument: 'after', projection: { attempts: 1 } },
+  );
+  const left = config.verification.maxAttempts - (updated?.attempts ?? config.verification.maxAttempts);
+  throw new HttpError(
+    400,
+    'invalid_code',
+    left > 0
+      ? `인증번호가 일치하지 않습니다. (${left}회 남음)`
+      : '시도 횟수를 초과했습니다. 다시 요청해 주세요.',
+  );
 }
 
 /** 어드민이 전달할, 아직 쓰이지 않은 인증코드. 만료된 것은 제외한다. */
@@ -133,32 +165,17 @@ export async function completeSignup(
     );
   }
 
+  // 어드민이 발급한 코드가 있으면 그걸로, 없으면 Supabase가 보낸 코드로 검증한다.
   const record = await emailVerifications().findOne(
     { studentNo, consumedAt: null },
     { sort: { createdAt: -1 } },
   );
-  if (!record) {
+  if (record) {
+    await checkLocalCode(record, code);
+  } else if (config.supabase) {
+    await verifyOtp(email, code);
+  } else {
     throw new HttpError(400, 'no_verification', '인증 요청을 먼저 해주세요.');
-  }
-  if (record.expiresAt.getTime() <= Date.now()) {
-    throw new HttpError(400, 'code_expired', '인증번호가 만료되었습니다. 다시 요청해 주세요.');
-  }
-  if (record.attempts >= config.verification.maxAttempts) {
-    throw new HttpError(400, 'too_many_attempts', '시도 횟수를 초과했습니다. 다시 요청해 주세요.');
-  }
-
-  if (!verificationCodeMatches(code, record.codeHash)) {
-    // 실패도 기록해야 시도 횟수 제한이 작동한다 (PRD F-1.5)
-    const updated = await emailVerifications().findOneAndUpdate(
-      { _id: record._id },
-      { $inc: { attempts: 1 } },
-      { returnDocument: 'after', projection: { attempts: 1 } },
-    );
-    const left = config.verification.maxAttempts - (updated?.attempts ?? config.verification.maxAttempts);
-    throw new HttpError(400, 
-      'invalid_code',
-      left > 0 ? `인증번호가 일치하지 않습니다. (${left}회 남음)` : '시도 횟수를 초과했습니다. 다시 요청해 주세요.',
-    );
   }
 
   const student = await students().findOne({ _id: studentNo }, { projection: { name: 1 } });
@@ -187,7 +204,7 @@ export async function completeSignup(
     throw err;
   }
 
-  await emailVerifications().updateOne({ _id: record._id }, { $set: { consumedAt: now } });
+  if (record) await emailVerifications().updateOne({ _id: record._id }, { $set: { consumedAt: now } });
 
   await pointTransactions().insertOne({
     _id: new ObjectId(),

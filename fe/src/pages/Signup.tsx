@@ -70,7 +70,7 @@ export function Signup() {
         <form onSubmit={verify}>
           {delivery === 'email' ? (
             <p className="mb-3 text-[11px] text-carbon">
-              <strong>{email}</strong> 로 보낸 6자리 인증번호를 입력하세요. (10분 유효)
+              <strong>{email}</strong> 로 보낸 인증번호를 입력하세요. (10분 유효)
             </p>
           ) : (
             <div className="inset mb-3 border-l-4 border-l-amber p-2">
@@ -84,7 +84,7 @@ export function Signup() {
           <Field
             label="인증번호"
             inputMode="numeric"
-            maxLength={6}
+            maxLength={8}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required

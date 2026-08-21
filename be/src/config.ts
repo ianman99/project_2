@@ -15,19 +15,15 @@ function optional(name: string, fallback: string): string {
 const nodeEnv = optional('NODE_ENV', 'development');
 
 /**
- * 메일 발송은 선택사항이다.
- * 둘 다 없으면 인증코드를 발송하지 않고 어드민이 직접 발급한다 (PRD F-1.9).
- * 배포 환경이 이 경우다 — Render 무료 플랜은 SMTP 포트를 막고,
- * 학교 도메인은 DNS를 건드릴 수 없어 제3자 발송 API도 인증할 수 없다.
+ * 인증코드 발송은 Supabase Auth에 맡긴다 (연결된 네이버 SMTP가 실제로 보낸다).
+ * 설정이 없으면 발송하지 않고 어드민이 코드를 직접 발급한다 (PRD F-1.9).
+ * secret 키는 쓰지 않는다 — otp/verify는 publishable 키로 충분하다.
  */
-const brevoApiKey = process.env.BREVO_API_KEY ?? null;
-const smtp =
-  !brevoApiKey && process.env.SMTP_HOST
+const supabase =
+  process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY
     ? {
-        host: process.env.SMTP_HOST,
-        port: Number(optional('SMTP_PORT', '587')),
-        user: optional('SMTP_USER', ''),
-        pass: optional('SMTP_PASS', ''),
+        url: process.env.SUPABASE_URL.replace(/\/$/, ''),
+        key: process.env.SUPABASE_PUBLISHABLE_KEY,
       }
     : null;
 
@@ -48,14 +44,7 @@ export const config = {
     uri: required('MONGODB_URI'),
     db: required('MONGODB_DB'),
   },
-  smtp,
-  mail: {
-    fromAddress: optional('MAIL_FROM_ADDRESS', ''),
-    fromName: optional('MAIL_FROM_NAME', '사랑찾아 인생찾아'),
-    brevoApiKey,
-    /** 발송 수단이 하나도 없으면 어드민이 코드를 직접 발급한다. */
-    enabled: Boolean(brevoApiKey || smtp),
-  },
+  supabase,
   auth: {
     sessionSecret: required('SESSION_SECRET'),
     adminStudentNo: optional('ADMIN_STUDENT_NO', '6155'),
